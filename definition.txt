@@ -1,0 +1,33 @@
+Defining the od_object class
+
+Step 1: create object. On creation:
+
+- check if any tables have been created
+- find the default table
+- load in the details about the tables
+
+Step 2: Set the table. (optional)
+
+- function to set the table to be used.
+- if this step doesn't happen then the default is used.
+
+Step 3: Set the filters (optional)
+
+- function to set the filters
+- if this doesn't happen then get all the data
+
+Step 4a: Get the data
+
+- use the filters and the table to get the data
+
+Step 4b: Get one data item
+
+- get one data item, based on one item id
+
+
+Other functions:
+
+- add or edit a table (needs table details plus column details)
+- import data into a table (needs a table to exist first)
+- return html representation of one data item
+- change the default table
