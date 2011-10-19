@@ -7,6 +7,7 @@ function od_display_data($od_object,$od_type="data"){
 		$od_data = $od_object->get_data();
 	}
 	header("Content-type: text/csv");
+	header('Content-Disposition: attachment; filename="data_export.csv"');
 	$outstream = fopen("php://temp", 'r+'); // open a temporary file to write the CSV to
 	$count=0;
 	foreach($od_data as $entryrow){ 

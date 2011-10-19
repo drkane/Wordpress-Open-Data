@@ -2,7 +2,7 @@
 /*
 Plugin Name: Wordpress Open Data
 Description: Adds open data functionality to a Wordpress-based site.
-Plugin URI: http://drkane.co.uk/wordpressopendata
+Plugin URI: http://drkane.co.uk/projects/wordpress-open-data
 Version: 0.1
 Author: David Kane
 Author URI: http://drkane.co.uk/
@@ -71,12 +71,15 @@ function od_template_redirect(){
 		if($od_data_type=="item"){
 			$od_data->set_item_id($od_id);
 			echo od_display_data($od_data,"item");
+			header("HTTP/1.1 200 OK");
 		} else if($od_data_type=="map") {
 			$od_include = "/map-html.php";
 			include($od_include);
 			echo od_display_data($od_data);
+			header("HTTP/1.1 200 OK");
 		} else {
 			echo od_display_data($od_data);
+			header("HTTP/1.1 200 OK");
 		}
 		exit;
 	}
@@ -112,6 +115,7 @@ add_action('query_vars', 'od_queryvars');
 add_action('template_redirect', 'od_template_redirect');
 
 add_action('admin_menu', 'od_menu');
+add_action( 'add_meta_boxes', 'od_nav_menu_metabox' );
 
 function od_menu() {
 	add_menu_page( "Data", "Data", "manage_options", "open-data", "od_options_main" , null, 32 );
@@ -273,6 +277,40 @@ function od_options_permalinks() {
 	echo '<div class="wrap">';
 	echo '<div id="icon-edit-pages" class="icon32 icon32-posts-page"><br /></div><h2>Edit data permalinks</h2> ';
 	echo '</div>';
+}
+
+function od_nav_menu_metabox() {
+	add_meta_box( 
+        'add-data',
+        __( 'Add data', 'myplugin_textdomain' ),
+        'od_inner_custom_box',
+        'nav-menu' 
+    );
+}
+
+function od_inner_custom_box() {
+	echo "<p>Text box</p>";
+}
+
+function od_change_datatype($od_type="csv") {
+	$od_pageURL = 'http';
+	if ($_SERVER["HTTPS"] == "on") {$pageURL .= "s";}
+	$od_pageURL .= "://";
+	if ($_SERVER["SERVER_PORT"] != "80") {
+		$od_pageURL .= $_SERVER["SERVER_NAME"].":".$_SERVER["SERVER_PORT"].$_SERVER["REQUEST_URI"];
+	} else {
+		$od_pageURL .= $_SERVER["SERVER_NAME"].$_SERVER["REQUEST_URI"];
+	}
+	if(strpos($od_pageURL,"od_data=")>0){
+		if(strpos($od_pageURL,"od_filetype=")>0){
+			$od_new_url = $od_pageURL . "&od_filetype=$od_type";
+		} else {
+			$od_new_url = $od_pageURL . "&od_filetype=$od_type";
+		}
+	} else {
+		$od_new_url = $od_pageURL . ".$od_type";
+	}
+	return $od_new_url;
 }
 
 

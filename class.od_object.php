@@ -1,33 +1,251 @@
 <?php
 
+/**
+ * Defines the od_object class, which contains function and variables for 
+ * viewing and filtering open data stored in the WordPress database
+ *
+ * @package WordPressOpenData
+ */
+
 class od_object {
 	
-	public $tables = array();
-	public $data = array();
-	public $item = array();
-	public $filters = array();
-	public $search = array();
-	public $default_table = "";
-	public $selected_table = "";
-	public $categories = array();
-	private $setup = false;
-	private $tables_name = "";
-	private $columns_name = "";
-	private $item_id = "";
-	private $select_cols = array();
-	private $search_cols = array();
-	private $filter_cols = array("single"=>array(),"multiple"=>array());
+	public $tables = array(); // The tables associated with Open Data
+	public $data = array(); // The selected data
+	public $item = array(); // An individual data item
+	public $filters = array(); // Filters selected by the user
+	public $search = array(); // Search terms selected by the user
+	public $default_table = ""; // the table that will be set as a default
+	public $selected_table = ""; // the currently selected table
+	public $categories = array(); // categories included in the data (those that it is possible to select using $filters)
+	private $setup = false; // whether the od_object has been setup
+	private $tables_name = ""; // the name of the admin table that stores data about the tables
+	private $columns_name = ""; // the name of the admin table that stores data about the columns
+	private $item_id = ""; 
+	private $select_cols = array(); // columns that it is possible to select
+	private $search_cols = array(); // columns that can be searched
+	private $filter_cols = array("single"=>array(),"multiple"=>array()); // columns that can be filtered (two types of filters)
 	
+	/**
+	 * called when an object is created, sets and gets appropriate metadata
+	**/
+	function __construct(){
+		$this->set_table_names();
+		$this->get_table_config();
+		$this->select_table();
+	}
+	
+	/**
+	 * Sets the admin table names using the standard blog table name prefix
+	**/
 	private function set_table_names(){
 		global $wpdb;
 		$this->tables_name = $wpdb->get_blog_prefix()."opendata_tables";
 		$this->columns_name = $wpdb->get_blog_prefix()."opendata_columns";
 	}
 	
+	/**
+	 * Gets the configuration options of all the tables
+	**/
+	private function get_table_config(){
+		global $wpdb;
+		$od_sql = "SHOW TABLES LIKE '".$this->tables_name."'";
+		if($wpdb->query($od_sql)==1){ // check if the admin table exists
+			$od_sql = "SHOW TABLES LIKE '".$this->columns_name."'";
+			if($wpdb->query($od_sql)==1){ // check if the columns admin table exists
+				$od_sql = "SELECT * FROM `".$this->tables_name."`";
+				$this->tables = $wpdb->get_results($od_sql, ARRAY_A); // get data from the tables admin table
+				foreach($this->tables as $od_table_key=>$od_table){ // for each table
+					$od_table_name = $wpdb->escape($od_table["name"]);
+					$od_sql_col = "SELECT * FROM `".$this->columns_name."` WHERE `table_name` = '$od_table_name'"; // find data on all the columns
+					$this->tables[$od_table_name] = $od_table;
+					$this->tables[$od_table_name]["columns"] = $wpdb->get_results($od_sql_col, ARRAY_A); // add details about the columns to the table array
+					foreach($this->tables[$od_table_name]["columns"] as $od_col_key=>$od_col){
+						$this->tables[$od_table_name]["columns"][$od_col["column_name"]] = $od_col;
+						unset($this->tables[$od_table_name]["columns"][$od_col_key]);
+					}
+					if($od_table["is_default"]==1){
+						$this->default_table = $od_table_name; // find the default table
+					}
+					unset($this->tables[$od_table_key]);
+				}
+			}	// Something needs to happen if the admin tables don't exist (create them?)
+		}	// Something needs to happen if the admin tables don't exist (create them?)
+	}
+	
+	/**
+	 * Selects the table to be used for data.
+	 * if no table is selected, or the selected table doesn't exist, then use the default table
+	**/
+	function select_table($table=null) {
+		if($table==null){ // check if a table is selected
+			$this->selected_table = $this->default_table;
+		} else {
+			if($this->table_exists($table)){ // check if the selected table exists
+				$this->selected_table = $table;
+			} else {
+				$this->selected_table = $this->default_table;
+			}
+		}
+	}
+	
+	/**
+	 * Construct the SQL query used to select data, based on the values that have been selected
+	**/
+	private function construct_sql_query(){
+		global $wpdb;
+		$sql = "SELECT ";
+		$sql_columns = $this->tables[$this->selected_table]["columns"];
+		$sql_columns =$this->subval_sort($sql_columns,"order","forward"); // sort the columns by the sort order provided
+		foreach($sql_columns as $col){
+			$colname = $wpdb->escape($col["column_name"]);
+			if($col["is_open"]==1){ // include only columns that are allowed to be made open
+				$this->select_cols[] = $colname;
+				if($col["is_search"]==1){ // if a column can be searched then include in search columns
+					$this->search_cols[$colname] = $colname;
+				}
+				if($col["filter_type"]=="multiple"){ // if a column can be filtered then include in filter columns
+					$this->filter_cols["multiple"][$colname] = $colname;
+				}
+				if($col["filter_type"]=="single"){ // if a column can be filtered then include in filter columns
+					$this->filter_cols["single"][$colname] = $colname;
+				}
+			}
+		}
+		$sql .= "`" . implode("`, `",$this->select_cols) . "` "; // implode all the column names
+		$sql .= "FROM `".$wpdb->get_blog_prefix()."opendata_".$this->selected_table."` WHERE 1";
+		return $sql;
+		/**
+		 * this query could create problems for large datasets, as filtering 
+		 * and searching is done in PHP rather than in MySQL which means 
+		 * unnecessary data is included in the MySQL query. But to overcome 
+		 * this the query needs to be able to "properly" filter on fields that
+		 * are semi-colon separated (multiple filters)
+		**/
+	}
+	
+	/**
+	 * Construct the SQL query used to select individual data items, based on the values that have been selected
+	**/
+	private function construct_sql_item_query(){
+		global $wpdb;
+		$id_col = "";
+		$sql = "SELECT ";
+		$sql_columns = $this->tables[$this->selected_table]["columns"];
+		$sql_columns =$this->subval_sort($sql_columns,"order","forward");
+		foreach($sql_columns as $col){
+			$colname = $wpdb->escape($col["column_name"]);
+			if($col["is_open"]==1){ // include only columns that are allowed to be made open
+				$this->select_cols[] = $colname;
+			}
+			if($col["is_id"]==1){ // find the ID column (used to select the item)
+				$id_col = $colname;
+			}
+		}
+		$sql .= "`" . implode("`, `",$this->select_cols) . "` ";
+		$sql .= "FROM `".$wpdb->get_blog_prefix()."opendata_".$this->selected_table."` WHERE `$id_col` = '".$this->item_id."'";
+		$sql .= " LIMIT 0,1"; // only one item can be selected at any one time (item_id should be unique)
+		return $sql;
+	}
+	
+	/**
+	 * Get the data from the database, and filter according to the search terms and filters selected
+	 *
+	 * If multiple search terms are used (not usual) then items are selected if they match any search term
+	 * Multiple filters within the same field are treated as OR - ie they have to match any one
+	 * But multiple filters across different field are treated as AND - ie a record must match one from every filter used to be selected
+	 *
+	**/
+	public function get_data($customsql=""){
+		global $wpdb;
+		if($customsql==""){
+			$sql = $this->construct_sql_query();
+		} else {
+			$sql = $customsql; // allows a custom query to be sent. May create a security risk, so should be sanitised before being used.
+		}
+		$initial_data = $wpdb->get_results($sql, ARRAY_A);
+		foreach($initial_data as $datarow_key=>$datarow){ // go through the selected data set row by row
+			$select = 0;
+			$search_select = 0;
+			foreach($datarow as $datacol_key=>&$datacol){ // for each column in the data
+				if(isset($this->search_cols[$datacol_key])){ // if the column should be searched
+					foreach($this->search as $s){ // for each search term
+						if(strpos(strtolower($datacol),strtolower($s))!==false){
+							$search_select = 1; // if the search term 
+						}
+					}
+				}
+				if(isset($this->filter_cols["multiple"][$datacol_key])){ // if a field is used as a multiple filter
+					$datacol = str_replace("\\;","<<semicolon>>",$datacol); // temporarily replace any escaped semicolons
+					$datacol = explode(";",$datacol); // break the item into the multiple values, using a semicolon
+					foreach($datacol as &$datacolitem){ // for each value within the column
+						$colselect = 0;
+						$datacolitem = trim($datacolitem); // remove whitespace
+						$datacolitem = str_replace("<<semicolon>>","\\;",$datacolitem); // put back the escaped semicolon
+						if($datacolitem!=""){
+							/**
+							 * this part counts the number of possible values within each selectable column
+							 * in order to allow the most popular fields to be identified
+							**/
+							if(isset($this->categories[$datacol_key]["records"][$datacolitem])) // check if this value has been seen already
+								$this->categories[$datacol_key]["records"][$datacolitem]["count"]++; // if it has then count it
+							else {
+								$this->categories[$datacol_key]["records"][$datacolitem]["name"]=$datacolitem; // if not then create a new field
+								$this->categories[$datacol_key]["records"][$datacolitem]["count"]=1; // and start the count at 1
+							}
+						}
+						if(isset($this->filters[$datacol_key])){ // if this column has been filtered by the user
+							foreach($this->filters[$datacol_key] as $colfilter){
+								if(strtolower($colfilter)==strtolower($datacolitem)){ // and the value matches a value the user is looking for
+									$colselect = 1; // then this row should be selected
+								}
+							}
+						}
+						$select = $select + $colselect;
+					}
+				} else if(isset($this->filter_cols["single"][$datacol_key])){
+					if($datacol!=""){
+						/**
+						 * this part counts the number of possible values within each selectable column
+						 * in order to allow the most popular fields to be identified
+						**/
+						if(isset($this->categories[$datacol_key]["records"][$datacol])) // check if this value has been seen already
+							$this->categories[$datacol_key]["records"][$datacol]["count"]++; // if it has then count it
+						else {
+							$this->categories[$datacol_key]["records"][$datacol]["name"]=$datacol; // if not then create a new field
+							$this->categories[$datacol_key]["records"][$datacol]["count"]=1; // and start the count at 1
+						}
+					}
+					if(isset($this->filters[$datacol_key])){ // if this column has been filtered by the user
+						foreach($this->filters[$datacol_key] as $colfilter){
+							if(strtolower($colfilter)==strtolower($datacol)){ // and the value matches a value the user is looking for
+								$select = $select + 1; // then this row should be selected
+							}
+						}
+					}
+				}
+			}
+			if($select==count($this->filters)){ // if the number of filter matches is equal to the number of columns being filtered
+				if($search_select>0&&count($this->search)>0){ // and the number of search matches matches the number of search terms
+					$this->data[] = $datarow; // then add this row to the data
+				} else if (count($this->search)==0){ // or if no search is being used
+					$this->data[] = $datarow; // then add this row to the data
+				}
+			}
+		}
+		unset($initial_data); // remove the original data, to save on memory
+		$this->sort_categories(); // sort the values within each category by the number of times they appear
+		return $this->data; // return the data (data is also accessible from the $this->data field)
+	}
+	
+	/**
+	 * When creating an RSS feed, find which field should be used for a particular value (title, description, etc)
+	 *
+	 * This function could probably be done a lot more efficiently.
+	**/
 	public function get_rss($rss_field){
 		$return = false;
-		foreach($this->tables[$this->selected_table]["columns"] as $od_col_key=>$od_col){
-			if($od_col["rss_type"]==$rss_field){
+		foreach($this->tables[$this->selected_table]["columns"] as $od_col_key=>$od_col){ // go through each column
+			if($od_col["rss_type"]==$rss_field){ // if the rss_type matches the value you're looking for then that's the right field
 				$return = $od_col_key;
 			}
 			if($rss_field=="id"){
@@ -36,24 +254,34 @@ class od_object {
 				}
 			}
 		}
-		return $return;
+		return $return; // return the name of the column that should be used for this value
 	}
 	
+	/**
+	 * Returns a list of the filters that the user has applied, in a friendly format
+	 *
+	 * Could also check whether the filters applied correspond to 
+	 * actual filtered fields, though that may impact on performance.
+	**/
 	public function get_filters($display_type="html"){
 		$filters = array();
-		foreach($this->filters as $filtkey=>$filt){
+		foreach($this->filters as $filtkey=>$filt){ // get all of the filters currently applied
 			foreach($filt as $f){
-				$filters[] = ucwords($filtkey) . ": $f";
+				if($f != ""){ // if the filter isn't for an empty string
+					$filters[] = ucwords($filtkey) . ": $f"; // produce a text string with the filter and the value
+				}
 			}
 		}
 		foreach($this->search as $filt){
-			$filters[] = "Search: $filt";
+			if($filt != "" ){ // if the filter isn't for an empty string
+				$filters[] = "Search: $filt"; // also include search filters
+			}
 		}
 		$text = "";
-		if(count($filters)>0){
-			if($display_type=="html"){
+		if(count($filters)>0){ 
+			if($display_type=="html"){ // if html output is required
 				$text .= "<ul><li>";
-				$text .= implode("</li>\n<li>",$filters);
+				$text .= implode("</li>\n<li>",$filters); // implode all the selected filters
 				$text .= "</li></ul>";
 			} else {
 				$text = implode(" | ",$filters);
@@ -62,175 +290,34 @@ class od_object {
 		return $text;
 	}
 	
-	private function get_table_config(){
-		global $wpdb;
-		$od_sql = "SHOW TABLES LIKE '".$this->tables_name."'";
-		if($wpdb->query($od_sql)==1){
-			$od_sql = "SHOW TABLES LIKE '".$this->columns_name."'";
-			if($wpdb->query($od_sql)==1){
-				$od_sql = "SELECT * FROM `".$this->tables_name."`";
-				$this->tables = $wpdb->get_results($od_sql, ARRAY_A);
-				foreach($this->tables as $od_table_key=>$od_table){
-					$od_table_name = $wpdb->escape($od_table["name"]);
-					$od_sql_col = "SELECT * FROM `".$this->columns_name."` WHERE `table_name` = '$od_table_name'";
-					$this->tables[$od_table_name] = $od_table;
-					$this->tables[$od_table_name]["columns"] = $wpdb->get_results($od_sql_col, ARRAY_A);
-					$od_col_count = 1;
-					foreach($this->tables[$od_table_name]["columns"] as $od_col_key=>$od_col){
-						$od_col["order"] = $od_col_count++;
-						$this->tables[$od_table_name]["columns"][$od_col["column_name"]] = $od_col;
-						unset($this->tables[$od_table_name]["columns"][$od_col_key]);
-					}
-					if($od_table["is_default"]==1){
-						$this->default_table = $od_table_name;
-					}
-					unset($this->tables[$od_table_key]);
-				}
-			}
-		}
-	}
-	
-	public function construct_sql_query(){
-		global $wpdb;
-		$sql = "SELECT ";
-		foreach($this->tables[$this->selected_table]["columns"] as $col){
-			$colname = $wpdb->escape($col["column_name"]);
-			if($col["is_open"]==1){
-				$this->select_cols[] = $colname;
-				if($col["is_search"]==1){
-					$this->search_cols[$colname] = $colname;
-				}
-				if($col["filter_type"]=="multiple"){
-					$this->filter_cols["multiple"][$colname] = $colname;
-				}
-				if($col["filter_type"]=="single"){
-					$this->filter_cols["single"][$colname] = $colname;
-				}
-			}
-		}
-		$sql .= "`" . implode("`, `",$this->select_cols) . "` ";
-		$sql .= "FROM `".$wpdb->get_blog_prefix()."opendata_".$this->selected_table."` WHERE 1";
-		return $sql;
-	}
-	
-	public function construct_sql_item_query(){
-		global $wpdb;
-		$id_col = "";
-		$sql = "SELECT ";
-		foreach($this->tables[$this->selected_table]["columns"] as $col){
-			$colname = $wpdb->escape($col["column_name"]);
-			if($col["is_open"]==1){
-				$this->select_cols[] = $colname;
-			}
-			if($col["is_id"]==1){
-				$id_col = $colname;
-			}
-		}
-		$sql .= "`" . implode("`, `",$this->select_cols) . "` ";
-		$sql .= "FROM `".$wpdb->get_blog_prefix()."opendata_".$this->selected_table."` WHERE `$id_col` = '".$this->item_id."'";
-		$sql .= " LIMIT 0,1";
-		return $sql;
-	}
-	
+	/**
+	 * check whether a named table exists
+	**/
 	private function table_exists($table){
 		$table_exists = false;
-		foreach($this->tables as $od_table){
-			if($od_table["name"]==$table){
-				$table_exists = true;
+		foreach($this->tables as $od_table){ // cycle through all of the tables 
+			if($od_table["name"]==$table){ // if the table is in there then it exists
+				$table_exists = true; 
 			}
 		}
 		return $table_exists;
 	}
 	
+	/**
+	 * Sort each of the categories according to how many times each value appears (descending)
+	**/
 	private function sort_categories(){
 		foreach($this->categories as &$cat){
-			$cat["records"] = $this->subval_sort($cat["records"],"count");
+			$cat["records"] = $this->subval_sort($cat["records"],"count"); // uses subval_sort function
 		}
 	}
 	
-	function __construct(){
-		$this->set_table_names();
-		$this->get_table_config();
-		$this->select_table();
-	}
-	
+	/**
+	 * Set the item that is being found
+	**/
 	public function set_item_id($od_id=""){
 		global $wpdb;
-		$this->item_id = $wpdb->escape($od_id);
-	}
-	
-	public function get_data($customsql=""){
-		global $wpdb;
-		if($customsql==""){
-			$sql = $this->construct_sql_query();
-		} else {
-			$sql = $customsql;
-		}
-		$initial_data = $wpdb->get_results($sql, ARRAY_A);
-		foreach($initial_data as $datarow_key=>$datarow){
-			$select = 0;
-			$search_select = 0;
-			foreach($datarow as $datacol_key=>&$datacol){
-				if(isset($this->search_cols[$datacol_key])){
-					foreach($this->search as $s){
-						if(strpos(strtolower($datacol),strtolower($s))!==false){
-							$search_select = 1;
-						}
-					}
-				}
-				if(isset($this->filter_cols["multiple"][$datacol_key])){
-					$datacol = str_replace("\\;","<<semicolon>>",$datacol);
-					$datacol = explode(";",$datacol);
-					foreach($datacol as &$datacolitem){
-						$colselect = 0;
-						$datacolitem = trim($datacolitem);
-						$datacolitem = str_replace("<<semicolon>>","\\;",$datacolitem);
-						if($datacolitem!=""){
-							if(isset($this->categories[$datacol_key]["records"][$datacolitem]))
-								$this->categories[$datacol_key]["records"][$datacolitem]["count"]++;
-							else {
-								$this->categories[$datacol_key]["records"][$datacolitem]["name"]=$datacolitem;
-								$this->categories[$datacol_key]["records"][$datacolitem]["count"]=1;
-							}
-						}
-						if(isset($this->filters[$datacol_key])){
-							foreach($this->filters[$datacol_key] as $colfilter){
-								if(strtolower($colfilter)==strtolower($datacolitem)){
-									$colselect = 1;
-								}
-							}
-						}
-						$select = $select + $colselect;
-					}
-				} else if(isset($this->filter_cols["single"][$datacol_key])){
-					if($datacol!=""){
-						if(isset($this->categories[$datacol_key]["records"][$datacol]))
-							$this->categories[$datacol_key]["records"][$datacol]["count"]++;
-						else {
-							$this->categories[$datacol_key]["records"][$datacol]["name"]=$datacol;
-							$this->categories[$datacol_key]["records"][$datacol]["count"]=1;
-						}
-					}
-					if(isset($this->filters[$datacol_key])){
-						foreach($this->filters[$datacol_key] as $colfilter){
-							if(strtolower($colfilter)==strtolower($datacol)){
-								$select = $select + 1;
-							}
-						}
-					}
-				}
-			}
-			if($select==count($this->filters)){
-				if($search_select>0&&count($this->search)>0){
-					$this->data[] = $datarow;
-				} else if (count($this->search)==0){
-					$this->data[] = $datarow;
-				}
-			}
-		}
-		unset($initial_data);
-		$this->sort_categories();
-		return $this->data;
+		$this->item_id = $wpdb->escape($od_id); // SQL escaped for security
 	}
 	
 	public function get_item(){
@@ -238,32 +325,18 @@ class od_object {
 		$sql = $this->construct_sql_item_query();
 		$this->item = $wpdb->get_results($sql, ARRAY_A);
 		$this->item = $this->item[0];
-		foreach($this->item as $datarow_key=>&$datarow){
-			foreach($datarow as $datacol_key=>&$datacol){
-				if($this->tables[$this->selected_table]["columns"][$datacol_key]["filter_type"]=="multiple"){
-					$datacol = str_replace("\\;","<<semicolon>>",$datacol);
-					$datacol = explode(";",$datacol);
-					foreach($datacol as &$datacolitem){
-						$colselect = 0;
-						$datacolitem = trim($datacolitem);
-						$datacolitem = str_replace("<<semicolon>>","\\;",$datacolitem);
-					}
+		foreach($this->item as $datacol_key=>&$datacol){
+			if($this->tables[$this->selected_table]["columns"][$datacol_key]["filter_type"]=="multiple"){
+				$datacol = str_replace("\\;","<<semicolon>>",$datacol);
+				$datacol = explode(";",$datacol);
+				foreach($datacol as &$datacolitem){
+					$colselect = 0;
+					$datacolitem = trim($datacolitem);
+					$datacolitem = str_replace("<<semicolon>>","\\;",$datacolitem);
 				}
 			}
 		}
 		return $this->item;
-	}
-	
-	function select_table($table=null) {
-		if($table==null){
-			$this->selected_table = $this->default_table;
-		} else {
-			if($this->table_exists($table)){
-				$this->selected_table = $table;
-			} else {
-				$this->selected_table = $this->default_table;
-			}
-		}
 	}
 	
 	public function set_filters($filters=null){
@@ -373,6 +446,9 @@ class od_object {
 				$patterns_if[] = "/{{(.*?)%%$o%%(.*?)}}/";
 				$patterns[] = "/%%$o%%/";
 				if(isset($od_data[$o])){
+					if(is_array($od_data[$o])){
+						$od_data[$o] = implode(";\n",$od_data[$o]);
+					}
 					$replacements[] = $od_data[$o];
 					if($od_data[$o]!=""){
 						$replacements_if[] = '${1}'.$od_data[$o].'${2}';
@@ -396,7 +472,7 @@ class od_object {
 		return $text;
 	}
 	
-	function subval_sort($a,$subkey) {
+	function subval_sort($a,$subkey,$direction="reverse") {
 	/* 
 	** a function for sorting a multidimensional array 
 	** stolen from http://www.firsttube.com/read/sorting-a-multidimensional-array-with-php/
@@ -409,7 +485,11 @@ class od_object {
 				$b[$k] = strtolower($v[$subkey]); // make an array of the subkeys
 			}
 			if(isset($b)){
-				arsort($b); // sort the array of subkeys
+				if($direction=="reverse"){
+					arsort($b); // sort the array of subkeys in reverse
+				} else {
+					asort($b); // sort the array of subkeys
+				}
 				foreach($b as $key=>$val) {
 					$c[$key] = $a[$key]; // remake original array based on the order of the subkeys
 				}

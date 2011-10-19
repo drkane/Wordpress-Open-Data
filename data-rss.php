@@ -14,17 +14,22 @@ function od_display_data($od_object){
 	$output .= "\t<title>RSS Data Feed</title>\n";
 	$output .= "\t<link>" . get_bloginfo('url') . "</link>\n";
 	$output .= "\t<description>RSS Data Feed</description>\n";
+	$rss_field_title = $od_object->get_rss("title");
+	$rss_field_description = $od_object->get_rss("description");
+	$rss_field_guid = $od_object->get_rss("guid");
+	$rss_field_timestamp = $od_object->get_rss("timestamp");
+	$rss_field_id = $od_object->get_rss("id");
 	foreach($od_data as $c){
-		$od_timestamp = $c[$od_object->get_rss("timestamp")];
+		$od_timestamp = $c[$rss_field_timestamp];
 		$od_timestamp = strtotime($od_timestamp);
 		$od_timestamp = strftime('%a, %d %b %Y %H:%M:%S GMT',$od_timestamp);
-		$od_title = trim($c[$od_object->get_rss("title")]);
-		$od_desc = trim($c[$od_object->get_rss("description")]);
-		$od_guid = trim($c[$od_object->get_rss("guid")]);
+		$od_title = trim($c[$rss_field_title]);
+		$od_desc = trim($c[$rss_field_description]);
+		$od_guid = trim($c[$rss_field_guid]);
 		if($od_object->selected_table==$od_object->default_table){
-			$od_link = get_bloginfo('url') . "/item/" . trim($c[$od_object->get_rss("id")]);
+			$od_link = get_bloginfo('url') . "/item/" . trim($c[$rss_field_id]);
 		} else {
-			$od_link = get_bloginfo('url') . "/" . $od_object->selected_table . "/item/" . trim($c[$od_object->get_rss("id")]);
+			$od_link = get_bloginfo('url') . "/" . $od_object->selected_table . "/item/" . trim($c[$rss_field_id]);
 		}
 		$output .= "\t<item>\n";
 		if(strpos($od_title,"&")>0){

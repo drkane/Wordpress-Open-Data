@@ -12,15 +12,20 @@
 function od_display_data($od_object,$od_type="data"){
 	header("Content-type: text/html");
 	function od_set_page_title($orig_title) {
-		return "Open Data | ";  
+		return "Data | ";  
 	}
 	add_filter('wp_title', od_set_page_title);
 	get_header();
 	echo "<div id=\"primary\">\n";
 	echo "<div id=\"content\" role=\"main\">\n";
-	echo "<article id=\"post-2\" class=\"post-2 page type-page status-publish hentry\">\n";
+	echo "<article id=\"post-2\" class=\"page type-page status-publish hentry\">\n";
 	if($od_type=="item"){
 		echo $od_object->apply_template();
+		echo "<a href=\"" . od_change_datatype("csv") . "\">CSV</a> | ";
+		echo "<a href=\"" . od_change_datatype("json") . "\">JSON</a> | ";
+		echo "<a href=\"" . od_change_datatype("txt") . "\">TXT</a> | ";
+		echo "<a href=\"" . od_change_datatype("rss") . "\">RSS</a> | ";
+		echo "<a href=\"" . od_change_datatype("xml") . "\">XML</a>";
 		
 		echo "</article><!-- #post-0 -->\n";
 
@@ -36,7 +41,7 @@ function od_display_data($od_object,$od_type="data"){
 		//echo "</header><!-- .entry-header -->\n";
 
 		echo "<div class=\"entry-content\">\n";
-		echo "<p>" . number_format(count($od_data)) . " items found matching your criteria. Download data as CSV.</p>\n";
+		echo "<p>" . number_format(count($od_data)) . " items found matching your criteria. <a href=\"" . od_change_datatype("csv") . "\">Download data as CSV</a>.</p>\n";
 		echo $od_object->get_filters();
 		echo "<table>\n";
 		$od_rowcount = 0;
@@ -47,10 +52,16 @@ function od_display_data($od_object,$od_type="data"){
 					if($od_object->tables[$od_object->selected_table]["columns"][$od_key]["is_html"]==1){
 						echo "<th>". $od_object->tables[$od_object->selected_table]["columns"][$od_key]["nice_name"] ."</th>\n";
 					}
+					if($od_object->tables[$od_object->selected_table]["columns"][$od_key]["is_id"]==1){
+						$od_id_column = $od_key;
+					}
 				}
 				echo "</tr>\n";
 				$od_rowcount++;
 			}
+			$od_item_url = "";
+			if($od_object->selected_table!=$od_object->default_table){$od_item_url .= $od_object->selected_table . "/";}
+			$od_item_url .= "data/item/" . urlencode(strtolower($c[$od_id_column]));
 			foreach($c as $od_key=>$od_value){
 				$col_properties = $od_object->tables[$od_object->selected_table]["columns"][$od_key];
 				if($col_properties["is_html"]==1){
@@ -73,13 +84,33 @@ function od_display_data($od_object,$od_type="data"){
 							echo "<td>";
 							echo "<a href=\"";
 							echo get_bloginfo('url') . "/";
-							if($od_object->selected_table!=$od_object->default_table){echo $od_object->selected_table;}
-							echo "item/" . urlencode(strtolower($od_value));
+							echo $od_item_url;
+							echo "\">$od_value</a>";
+							echo "</td>\n";
+						} else if($col_properties["is_id"]==2){
+							echo "<td>";
+							echo "<a href=\"";
+							echo get_bloginfo('url') . "/";
+							echo $od_item_url;
 							echo "\">$od_value</a>";
 							echo "</td>\n";
 						} else if($col_properties["display_type"]=="currency"){
 							echo "<td style=\"text-align:right\">";
-							echo number_format((int)$od_value);
+							if($od_value!=""){
+								echo "&pound;" . number_format((int)$od_value);
+							}
+							echo "</td>\n";
+						} else if($col_properties["display_type"]=="numeric"){
+							echo "<td style=\"text-align:right\">";
+							if($od_value!=""){
+								echo number_format((int)$od_value);
+							}
+							echo "</td>\n";
+						} else if($col_properties["linked_data_url"]!=""){
+							echo "<td>";
+							echo "<a href=\"";
+							echo str_replace("{{field}}",$od_value,$col_properties["linked_data_url"]);
+							echo "\">$od_value</a>";
 							echo "</td>\n";
 						} else {
 							echo "<td>";
@@ -88,7 +119,7 @@ function od_display_data($od_object,$od_type="data"){
 								echo "<a href=\"";
 								echo get_bloginfo('url') . "/";
 								if($od_object->selected_table!=$od_object->default_table){echo $od_object->selected_table;}
-								echo "item/" . urlencode(strtolower($od_value));
+								echo $od_item_url;
 								echo "\">[...]</a>";
 							} else {
 								echo $od_value;
@@ -101,6 +132,11 @@ function od_display_data($od_object,$od_type="data"){
 			echo "</tr>\n";
 		}
 		echo "</table>\n";
+		echo "<a href=\"" . od_change_datatype("csv") . "\">CSV</a> | ";
+		echo "<a href=\"" . od_change_datatype("json") . "\">JSON</a> | ";
+		echo "<a href=\"" . od_change_datatype("txt") . "\">TXT</a> | ";
+		echo "<a href=\"" . od_change_datatype("rss") . "\">RSS</a> | ";
+		echo "<a href=\"" . od_change_datatype("xml") . "\">XML</a>";
 		echo "</div><!-- .entry-content -->\n";
 		echo "</article><!-- #post-0 -->\n";
 
