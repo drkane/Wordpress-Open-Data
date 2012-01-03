@@ -1,8 +1,19 @@
 <?php
 
+/**
+ * Used to create a plain text file of data requested by the user
+ * Identical to CSV output except for two points
+ *  - individual items are displayed with a row for each column value
+ *  - the file is displayed in the browser rather than offered as a download
+ *
+ * Could also include the option to access the value for just one field.
+ *
+ * @package WordPressOpenData
+ */
+
 function od_display_data($od_object,$od_type="data"){
 	header("Content-type: text/plain");
-	if($od_type=="item"){
+	if($od_type=="item"){ // if it's a data item then display each column on its own row
 		$od_data = $od_object->get_item();
 		foreach($od_data as $entrykey=>$entryrow){
 			echo "$entrykey: ";

@@ -180,7 +180,7 @@ class od_object {
 					foreach($datacol as &$datacolitem){ // for each value within the column
 						$colselect = 0;
 						$datacolitem = trim($datacolitem); // remove whitespace
-						$datacolitem = str_replace("<<semicolon>>","\\;",$datacolitem); // put back the escaped semicolon
+						$datacolitem = str_replace("<<semicolon>>",";",$datacolitem); // put back the escaped semicolon
 						if($datacolitem!=""){
 							/**
 							 * this part counts the number of possible values within each selectable column
@@ -320,73 +320,85 @@ class od_object {
 		$this->item_id = $wpdb->escape($od_id); // SQL escaped for security
 	}
 	
+	/**
+	 * Get an item from a data table
+	**/
 	public function get_item(){
 		global $wpdb;
 		$sql = $this->construct_sql_item_query();
 		$this->item = $wpdb->get_results($sql, ARRAY_A);
 		$this->item = $this->item[0];
 		foreach($this->item as $datacol_key=>&$datacol){
-			if($this->tables[$this->selected_table]["columns"][$datacol_key]["filter_type"]=="multiple"){
-				$datacol = str_replace("\\;","<<semicolon>>",$datacol);
+			if($this->tables[$this->selected_table]["columns"][$datacol_key]["filter_type"]=="multiple"){ // turn multiple filter items into an array
+				$datacol = str_replace("\\;","<<semicolon>>",$datacol); // replace escaped semicolons
 				$datacol = explode(";",$datacol);
 				foreach($datacol as &$datacolitem){
 					$colselect = 0;
 					$datacolitem = trim($datacolitem);
-					$datacolitem = str_replace("<<semicolon>>","\\;",$datacolitem);
+					$datacolitem = str_replace("<<semicolon>>",";",$datacolitem); // put back in escaped semicolons
 				}
 			}
 		}
 		return $this->item;
 	}
 	
+	/**
+	 * Set the filters that will be used by the main data query
+	**/
 	public function set_filters($filters=null){
 		global $wpdb;
 		$success = false;
 		if(is_array($filters)){
 			foreach($filters as $filterkey=>$filter){
 				$include = false;
-				foreach($this->tables[$this->selected_table]["columns"] as $od_columns){
+				foreach($this->tables[$this->selected_table]["columns"] as $od_columns){ // check if each filter is in a filterable column
 					if($od_columns["column_name"]==$filterkey){
 						$include = true;
 					}
 				}
 				if($include===true){
-					if(is_array($filter)){
+					if(is_array($filter)){ 
 						if(implode("",$filter)!=""){
-							$this->filters[$filterkey] = $filter;
+							$this->filters[$filterkey] = $filter; // add the filters as an array
 						}
-					} else {
-						if($filter!=""){
-							$this->filters[$filterkey] = array($filter);
+					} else { // if only one filter term is included
+						if($filter!=""){ 
+							$this->filters[$filterkey] = array($filter); // then add it as an array
 						}
 					}
 					$success = true;
 				}
 			}
-		}
+		} // possibly need something if filters isn't an array (though it should be). Perhaps use as a search term instead?
 		foreach($this->filters as &$filt1){
 			foreach($filt1 as &$filt2){
-				$filt2 = $wpdb->escape($filt2);
+				$filt2 = $wpdb->escape($filt2); // escape all the filter terms, ready to go into a SQL query
 			}
 		}
 		return $this->filters;
 	}
 	
+	/**
+	 * Set the search terms that will be used by the main data query
+	**/
 	public function set_search($search){
 		global $wpdb;
 		if(!is_array($search)){
-			$search = explode(" OR ",$search);
+			$search = explode(" OR ",$search); // if the word " OR " is included then use as an array (if only one search term is used then this creates an array anyway)
 		}
 		foreach($search as $s){
 			if($s!=""){
-				$s = $wpdb->escape($s);
-				//$s = str_replace(" AND ","%",$s);
+				$s = $wpdb->escape($s); // escape all the search terms, ready to go into a SQL query 
+				//$s = str_replace(" AND ","%",$s); // aborted attempt at including wildcard characters - could be reused.
 				$this->search[] = $s;
 			}
 		}
 		return $this->search;
 	}
 	
+	/**
+	 * When an item is displayed in HTML a template can be used to display the data
+	**/
 	private function get_item_template(){
 		global $wpdb;
 		$od_sql = "SELECT `item_template` FROM `".$this->tables_name."` WHERE `name` = '".$wpdb->escape($this->selected_table)."' LIMIT 0,1";
@@ -395,6 +407,9 @@ class od_object {
 		return $template;		
 	}
 	
+	/**
+	 * When an item is displayed in HTML a template can be used to display extra info in a sidebar
+	**/
 	private function get_item_sidebar_template(){
 		global $wpdb;
 		$od_sql = "SELECT `item_sidebar_template` FROM `".$this->tables_name."` WHERE `name` = '".$wpdb->escape($this->selected_table)."' LIMIT 0,1";
@@ -403,21 +418,26 @@ class od_object {
 		return $template;		
 	}
 	
+	/**
+	 * Apply a main or sidebar template when an item is displayed
+	 * Fields are replaced using the pattern %%field%%
+	 * Text within double curly brackets eg {{%%field%% xxxxx}} is only included if the field is not blank
+	**/
 	public function apply_template($od_template_type="main"){
 		$od_data = $this->get_item();
 		if($od_template_type=="sidebar"){
-			$od_template = $this->get_item_sidebar_template();
+			$od_template = $this->get_item_sidebar_template(); // get the sidebar template
 			if($od_template==""){
-				get_sidebar();
+				get_sidebar(); // if no template is supplied then use the default sidebar
 			} else {
 				$text = "<div id=\"secondary\" class=\"widget-area\" role=\"complementary\">\n";
 				$text .= "<aside id=\"text-9\" class=\"widget widget_text\">\n";
 			}
 		} else {
-			$od_template = $this->get_item_template();
+			$od_template = $this->get_item_template(); // get the main template
 			$text = "";
 		}
-		if($od_template==""&&$od_template_type!="sidebar"){
+		if($od_template==""&&$od_template_type!="sidebar"){ // if no item template is supplied then use a really boring format
 			$text .= "<header class=\"entry-header\">\n";
 			$text .= "<h1 class=\"entry-title\">Data item</h1>\n";
 			$text .= "</header><!-- .entry-header -->\n";
@@ -434,42 +454,42 @@ class od_object {
 			}
 			$text .= "</table>\n";
 			$text .= "</div><!-- .entry-content -->\n";
-		} else {
-			preg_match_all("/%%(.*?)%%/",$od_template,$matches);
+		} else { // otherwise display the template with fields replaced
+			preg_match_all("/%%(.*?)%%/",$od_template,$matches); // find all the fields mentioned in the template
 			
-			$patterns_if = array();
-			$patterns = array();
-			$replacements_if = array();
-			$replacements = array();
+			$patterns_if = array(); // an array of possible fields to match
+			$patterns = array(); // an array of possible fields to match
+			$replacements_if = array(); // array of replacement values
+			$replacements = array(); // array of replacement values
 			
-			foreach($matches[1] as $o){
-				$patterns_if[] = "/{{(.*?)%%$o%%(.*?)}}/";
-				$patterns[] = "/%%$o%%/";
-				if(isset($od_data[$o])){
-					if(is_array($od_data[$o])){
-						$od_data[$o] = implode(";\n",$od_data[$o]);
+			foreach($matches[1] as $o){ // go through all the field matches found
+				$patterns_if[] = "/{{(.*?)%%$o%%(.*?)}}/"; // work out the regular expression to match the field
+				$patterns[] = "/%%$o%%/"; // work out the regular expression to match the field
+				if(isset($od_data[$o])){ // if the data item exists
+					if(is_array($od_data[$o])){ // if the data item is an array
+						$od_data[$o] = implode(";\n",$od_data[$o]); // then implode it into one string
 					}
-					$replacements[] = $od_data[$o];
+					$replacements[] = $od_data[$o]; // add the data value as a replacement
 					if($od_data[$o]!=""){
 						$replacements_if[] = '${1}'.$od_data[$o].'${2}';
 					} else {
 						$replacements_if[] = "";
 					}
-				} else {
+				} else { // otherwise replace with blank
 					$replacements_if[] = "";
 					$replacements[] = "";
 				}
 			}
 
-			$text2 = preg_replace($patterns_if,$replacements_if,$od_template);
-			$text2 = preg_replace($patterns,$replacements,$text2);
+			$text2 = preg_replace($patterns_if,$replacements_if,$od_template); // replace all the if values with the appropriate values
+			$text2 = preg_replace($patterns,$replacements,$text2); // replace all the fields with appropriate values
 			$text .= $text2;
 		}
 		if($od_template_type=="sidebar"&&$od_template!=""){
 			$text .= "</aside>\n";
 			$text .= "</div><!-- #secondary -->\n";
 		}
-		return $text;
+		return $text; // return the html based on the template
 	}
 	
 	function subval_sort($a,$subkey,$direction="reverse") {
