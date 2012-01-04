@@ -22,29 +22,39 @@ function od_display_data($od_object){
 	$output .= "\t</Icon>\n";
 	$output .= "</IconStyle>\n";
 	$output .= "</style>\n";
+	$kml_field_title = $od_object->get_rss("title"); // get the field used as RSS title
+	$kml_field_description = $od_object->get_rss("description"); // get the field used as RSS description
+	$kml_field_guid = $od_object->get_rss("guid"); // get the field used as RSS guid
+	$kml_field_timestamp = $od_object->get_rss("timestamp"); // get the field used as RSS timestamp (this is needed)
+	$kml_field_id = $od_object->get_rss("id"); // get the field used as RSS id
 	foreach($od_data as $c){
 		$od_timestamp = $c["timestamp"];
 		$od_timestamp = strtotime($od_timestamp);
 		$od_timestamp = strftime('%a, %d %b %Y %H:%M:%S GMT',$od_timestamp);
 		if($c["longitude"]!=""&&$c["latitude"]!=""){
 			$output .= "\t<Placemark>\n";
-			if(strpos($c["organisation"],"&")>0){
+			if(strpos($c[$kml_field_title],"&")>0){
 				$cdata = "<![CDATA[";
 				$cdataend = "]]>";
 			} else {
 				$cdata = $cdataend = "";
 			}
-			$output .= "\t\t<name>$cdata".$c["organisation"]."$cdataend</name>\n";
+			$output .= "\t\t<name>$cdata".$c[$kml_field_title]."$cdataend</name>\n";
 			$description = "";
 			if($c["amount"]!=""){
 				$description .= "<p>&pound;" . number_format((int)$c["amount"]) . "</p>";
 			}
-			if(strlen($c["Description"])>100){
-				$description .= substr($c["description"],0,strpos($c["description"]," ",100)) . "...";
+			if($od_object->selected_table==$od_object->default_table){
+				$od_link = get_bloginfo('url') . "/data/item/" . trim($c[$kml_field_id]);
 			} else {
-				$description .= $c["description"];
+				$od_link = get_bloginfo('url') . "/" . $od_object->selected_table . "/item/" . trim($c[$kml_field_id]);
 			}
-			$description .= "<p><a href=\"$stem"."cut/".$c["name"]."\">More on this cut</a></p>";
+			if(strlen($c["Description"])>100){
+				$description .= substr($c[$kml_field_description],0,strpos($c[$kml_field_description]," ",100)) . "...";
+			} else {
+				$description .= $c[$kml_field_description];
+			}
+			$description .= "<p><a href=\"$od_link\">More on this cut</a></p>";
 			$output .= "\t\t<description><![CDATA[$description]]></description>\n";
 			$output .= "\t\t<Point>\n";
 			$output .= "\t\t\t<coordinates>".$c["longitude"].",".$c["latitude"]."</coordinates>\n";

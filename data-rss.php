@@ -15,7 +15,7 @@ function od_display_data($od_object){
 	$output .= "\t<atom:link href=\"http://" . htmlentities($_SERVER['SERVER_NAME']) . htmlentities($_SERVER['REQUEST_URI']) . "\" rel=\"self\" type=\"application/rss+xml\" />\n"; // include a link to the page as requested
 	$output .= "\t<title>RSS Data Feed</title>\n";
 	$output .= "\t<link>" . get_bloginfo('url') . "</link>\n";
-	$output .= "\t<description>RSS Data Feed</description>\n"; // needs customisable RSS data feed title
+	$output .= "\t<description>RSS Data Feed</description>\n"; // needs customisable RSS data feed title and description
 	$rss_field_title = $od_object->get_rss("title"); // get the field used as RSS title
 	$rss_field_description = $od_object->get_rss("description"); // get the field used as RSS description
 	$rss_field_guid = $od_object->get_rss("guid"); // get the field used as RSS guid

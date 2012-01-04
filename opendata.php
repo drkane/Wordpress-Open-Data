@@ -65,23 +65,20 @@ function od_template_redirect(){
 			if($od_filetype=="rss"){
 				$od_filetype="html";
 			}
-		}
-		$od_include = dirname(__FILE__) . "/data-$od_filetype.php";
+		}		if($od_data_type=="map"){			$od_include = dirname(__FILE__) . "/map-html.php";		} else {			$od_include = dirname(__FILE__) . "/data-$od_filetype.php";		}
 		include($od_include);
 		if($od_data_type=="item"){
 			header("HTTP/1.1 200 OK");
-			header($od_filetypes[od_filetype]);
+			header($od_filetypes[$od_filetype]);
 			$od_data->set_item_id($od_id);
 			echo od_display_data($od_data,"item");
 		} else if($od_data_type=="map") {
 			header("HTTP/1.1 200 OK");
-			header($od_filetypes[od_filetype]);
-			$od_include = "/map-html.php";
-			include($od_include);
+			header($od_filetypes[$od_filetype]);
 			echo od_display_data($od_data);
 		} else {
 			header("HTTP/1.1 200 OK");
-			header($od_filetypes[od_filetype]);
+			header($od_filetypes[$od_filetype]);
 			echo od_display_data($od_data);
 		}
 		exit;
@@ -89,24 +86,8 @@ function od_template_redirect(){
 }
 
 function opendata_dir_rewrite($wp_rewrite) {
-    $feed_rules = array(
-        'data/filter/([^/]+)/([^/]+)\.([a-z]+)' => 'index.php?od_data=data&od_filetype=$3&od_filter[$1]=$2',
-        'data/filter/([^/]+)/([^/]+)' => 'index.php?od_data=data&od_filetype=html&od_filter[$1]=$2',
-        'data/search/([^/]+)\.([a-z]+)' => 'index.php?od_data=data&od_filetype=$2&od_search=$1',
-        'data/search/([^/]+)' => 'index.php?od_data=data&od_filetype=html&od_search=$1',
-        'data/item/([^/]+)\.([a-z]+)' => 'index.php?od_data=item&od_filetype=$2&od_id=$1',
-        'data/item/([^/]+)' => 'index.php?od_data=item&od_filetype=html&od_id=$1',
-        'data\.([a-z]+)' => 'index.php?od_data=data&od_filetype=$1',
-        'data' => 'index.php?od_data=data&od_filetype=html',
-        '([^/]+)/data/filter/([^/]+)/([^/]+)\.([a-z]+)' => 'index.php?od_data=data&od_table=$1&od_filetype=$4&od_filter[$2]=$3',
-        '([^/]+)/data/filter/([^/]+)/([^/]+)' => 'index.php?od_data=data&od_table=$1&od_filetype=html&od_filter[$2]=$3',
-        '([^/]+)/data/search/([^/]+)\.([a-z]+)' => 'index.php?od_data=data&od_table=$1&od_filetype=$3&od_search=$2',
-        '([^/]+)/data/search/([^/]+)' => 'index.php?od_data=data&od_table=$1&od_filetype=html&od_search=$2',
-        '([^/]+)/data/item/([^/]+)\.([a-z]+)' => 'index.php?od_data=item&od_table=$1&od_filetype=$3&od_id=$2',
-        '([^/]+)/data/item/([^/]+)' => 'index.php?od_data=item&od_table=$1&od_filetype=html&od_id=$2',
-        '([^/]+)/data\.([a-z]+)' => 'index.php?od_data=data&od_table=$1&od_filetype=$2',
-        '([^/]+)/data' => 'index.php?od_data=data&od_table=$1&od_filetype=html'
-    );
+    $feed_rules = array(
+        '(data|map)/filter/([^/]+)/([^/]+)\.([a-z]+)' => 'index.php?od_data=$1&od_filetype=$4&od_filter[$2]=$3',        '(data|map)/filter/([^/]+)/([^/]+)' => 'index.php?od_data=$1&od_filetype=html&od_filter[$2]=$3',        '(data|map)/search/([^/]+)\.([a-z]+)' => 'index.php?od_data=$1&od_filetype=$3&od_search=$2',        '(data|map)/search/([^/]+)' => 'index.php?od_data=$1&od_filetype=html&od_search=$2',        'data/item/([^/]+)\.([a-z]+)' => 'index.php?od_data=item&od_filetype=$2&od_id=$1',        'data/item/([^/]+)' => 'index.php?od_data=item&od_filetype=html&od_id=$1',        '(data|map)\.([a-z]+)' => 'index.php?od_data=$1&od_filetype=$2',        '(data|map)' => 'index.php?od_data=$1&od_filetype=html',        '([^/]+)/(data|map)/filter/([^/]+)/([^/]+)\.([a-z]+)' => 'index.php?od_data=$2&od_table=$1&od_filetype=$5&od_filter[$3]=$4',        '([^/]+)/(data|map)/filter/([^/]+)/([^/]+)' => 'index.php?od_data=$2&od_table=$1&od_filetype=html&od_filter[$3]=$4',        '([^/]+)/(data|map)/search/([^/]+)\.([a-z]+)' => 'index.php?od_data=$2&od_table=$1&od_filetype=$4&od_search=$3',        '([^/]+)/(data|map)/search/([^/]+)' => 'index.php?od_data=$2&od_table=$1&od_filetype=html&od_search=$3',        '([^/]+)/data/item/([^/]+)\.([a-z]+)' => 'index.php?od_data=item&od_table=$1&od_filetype=$3&od_id=$2',        '([^/]+)/data/item/([^/]+)' => 'index.php?od_data=item&od_table=$1&od_filetype=html&od_id=$2',        '([^/]+)/(data|map)\.([a-z]+)' => 'index.php?od_data=$2&od_table=$1&od_filetype=$3',        '([^/]+)/(data|map)' => 'index.php?od_data=$2&od_table=$1&od_filetype=html'    );
 
 	$wp_rewrite->non_wp_rules = $feed_rules;
 }
@@ -295,26 +276,8 @@ function od_inner_custom_box() {
 	echo "<p>Text box</p>";
 }
 
-function od_change_datatype($od_type="csv") {
-	$od_pageURL = 'http';
-	if ($_SERVER["HTTPS"] == "on") {$pageURL .= "s";}
-	$od_pageURL .= "://";
-	if ($_SERVER["SERVER_PORT"] != "80") {
-		$od_pageURL .= $_SERVER["SERVER_NAME"].":".$_SERVER["SERVER_PORT"].$_SERVER["REQUEST_URI"];
-	} else {
-		$od_pageURL .= $_SERVER["SERVER_NAME"].$_SERVER["REQUEST_URI"];
-	}
-	if(strpos($od_pageURL,"od_data=")>0){
-		if(strpos($od_pageURL,"od_filetype=")>0){
-			$od_new_url = $od_pageURL . "&od_filetype=$od_type";
-		} else {
-			$od_new_url = $od_pageURL . "&od_filetype=$od_type";
-		}
-	} else {
-		$od_new_url = $od_pageURL . ".$od_type";
-	}
-	return $od_new_url;
-}
+function od_change_datatype($od_type="csv",$od_view="data") {	$od_pageURL = 'http';	if(isset($_SERVER["HTTPS"])){
+		if ($_SERVER["HTTPS"] == "on") {$pageURL .= "s";}	}	$od_pageURL .= "://";	if ($_SERVER["SERVER_PORT"] != "80") {		$od_pageURL .= $_SERVER["SERVER_NAME"].":".$_SERVER["SERVER_PORT"].$_SERVER["REQUEST_URI"];	} else {		$od_pageURL .= $_SERVER["SERVER_NAME"].$_SERVER["REQUEST_URI"];	}	if(strpos($od_pageURL,"od_data=")>0){		if(strpos($od_pageURL,"od_filetype=")>0){			$od_new_url = $od_pageURL . "&od_filetype=$od_type";		} else {			$od_new_url = $od_pageURL . "&od_filetype=$od_type";		}		if($od_view=="map"){			$od_new_url = str_replace("od_data=data","od_data=map",$od_new_url);		} else {			$od_new_url = str_replace("od_data=map","od_data=data",$od_new_url);		}	} else {		if($od_view=="map"){			$od_pageURL = str_replace("/data","/map",$od_pageURL);		} else {			$od_pageURL = str_replace("/map","/data",$od_pageURL);		}		if($od_type=="html"){			$od_new_url = str_replace(".html","",$od_pageURL);		} else {			$od_new_url = $od_pageURL . ".$od_type";		}	}	return $od_new_url;}
 
 
 ?>

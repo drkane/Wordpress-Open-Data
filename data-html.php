@@ -49,7 +49,7 @@ function od_display_data($od_object,$od_type="data"){
 		//echo "</header><!-- .entry-header -->\n";
 
 		echo "<div class=\"entry-content\">\n";
-		echo "<p>" . number_format(count($od_data)) . " items found matching your criteria. <a href=\"" . od_change_datatype("csv") . "\">Download data as CSV</a>.</p>\n"; // allow quick access to downloading data as a CSV file - could be more flexible
+		echo "<p>" . number_format(count($od_data)) . " items found matching your criteria. <a href=\"" . od_change_datatype("csv") . "\">Download data as CSV</a> or <a href=\"" . od_change_datatype("html","map") . "\">view on a map</a>.</p>\n"; // allow quick access to downloading data as a CSV file - could be more flexible
 		echo $od_object->get_filters(); // find the filters that have been used (and output them)
 		echo "<table class=\"open-data\">\n";
 		$od_rowcount = 0;
@@ -148,7 +148,8 @@ function od_display_data($od_object,$od_type="data"){
 		echo "<a href=\"" . od_change_datatype("json") . "\">JSON</a> | ";
 		echo "<a href=\"" . od_change_datatype("txt") . "\">TXT</a> | ";
 		echo "<a href=\"" . od_change_datatype("rss") . "\">RSS</a> | ";
-		echo "<a href=\"" . od_change_datatype("xml") . "\">XML</a>";
+		echo "<a href=\"" . od_change_datatype("xml") . "\">XML</a> | ";
+		echo "<a href=\"" . od_change_datatype("html","map") . "\">Map</a>";
 		echo "</div><!-- .entry-content -->\n";
 		echo "</article><!-- #post-0 -->\n";
 
