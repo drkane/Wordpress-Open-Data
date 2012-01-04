@@ -29,11 +29,10 @@ function od_display_data($od_object,$od_type="data"){
 	echo "<article id=\"post-2\" class=\"page type-page status-publish hentry\">\n";
 	if($od_type=="item"){
 		echo $od_object->apply_template(); // use the item template (or use default template if no template set)
-		echo "<a href=\"" . od_change_datatype("csv") . "\">CSV</a> | "; // include buttons to change the format of the data
-		echo "<a href=\"" . od_change_datatype("json") . "\">JSON</a> | ";
-		echo "<a href=\"" . od_change_datatype("txt") . "\">TXT</a> | ";
-		echo "<a href=\"" . od_change_datatype("rss") . "\">RSS</a> | ";
-		echo "<a href=\"" . od_change_datatype("xml") . "\">XML</a>";
+		echo "<a href=\"" . od_change_datatype("csv") . "\" title=\"Comma Separated Values: compatible with spreadsheet programs like Microsoft Excel\">CSV</a> | "; // allow the data to be downloaded in different formats
+		echo "<a href=\"" . od_change_datatype("json") . "\" title=\"JavaScript Object Notation\">JSON</a> | ";
+		echo "<a href=\"" . od_change_datatype("txt") . "\" title=\"A text file in CSV format\">TXT</a> | ";
+		echo "<a href=\"" . od_change_datatype("xml") . "\" title=\"eXtensible Markup Langauge\">XML</a>";
 		
 		echo "</article><!-- #post-0 -->\n";
 
@@ -144,12 +143,17 @@ function od_display_data($od_object,$od_type="data"){
 		}
 		echo "</tbody>\n";
 		echo "</table>\n";
-		echo "<a href=\"" . od_change_datatype("csv") . "\">CSV</a> | "; // allow the data to be downloaded in different formats
-		echo "<a href=\"" . od_change_datatype("json") . "\">JSON</a> | ";
-		echo "<a href=\"" . od_change_datatype("txt") . "\">TXT</a> | ";
-		echo "<a href=\"" . od_change_datatype("rss") . "\">RSS</a> | ";
-		echo "<a href=\"" . od_change_datatype("xml") . "\">XML</a> | ";
-		echo "<a href=\"" . od_change_datatype("html","map") . "\">Map</a>";
+		echo "<a href=\"" . od_change_datatype("csv") . "\" title=\"Comma Separated Values: compatible with spreadsheet programs like Microsoft Excel\">CSV</a> | "; // allow the data to be downloaded in different formats
+		echo "<a href=\"" . od_change_datatype("html") . "\" title=\"View in a table on a web page\">Table</a> | ";
+		echo "<a href=\"" . od_change_datatype("html","map") . "\" title=\"View in a map\">Map</a> | ";
+		echo "<a href=\"http://www.google.co.uk/maps?f=q&amp;source=embed&amp;hl=en&amp;geocode=&amp;q=".urlencode(od_change_datatype("kml"))."&amp;aq=&amp;vpsrc=0&amp;ie=UTF8&amp;t=m\" target=\"_blank\" title=\"View in Google Maps\">Google Maps</a>";
+		echo "<br />";
+		echo "<a href=\"" . od_change_datatype("json") . "\" title=\"JavaScript Object Notation\">JSON</a> | ";
+		echo "<a href=\"" . od_change_datatype("txt") . "\" title=\"A text file in CSV format\">TXT</a> | ";
+		echo "<a href=\"" . od_change_datatype("rss") . "\" title=\"Really Simple Syndication: used in feed readers such as Google Reader\">RSS</a> | ";
+		echo "<a href=\"" . od_change_datatype("xml") . "\" title=\"eXtensible Markup Langauge\">XML</a> | ";
+		echo "<a href=\"" . od_change_datatype("xml") . "\" title=\"Keyhole Markup Langauge\">KML</a> | ";
+		echo "<a href=\"" . od_change_datatype("xml") . "\" title=\"Geographical extension of RSS\">geoRSS</a>";
 		echo "</div><!-- .entry-content -->\n";
 		echo "</article><!-- #post-0 -->\n";
 
@@ -161,20 +165,48 @@ function od_display_data($od_object,$od_type="data"){
 		foreach($od_object->categories as $catkey=>$cat){
 			$col_properties = $od_object->tables[$od_object->selected_table]["columns"][$catkey];
 			echo "<p>" . $col_properties["nice_name"] . ": </br>";
-			echo "<select name=\"od_filter[".$catkey."][]\"";
-			if($col_properties["filter_type"]=="multiple"){
-				echo "multiple=\"multiple\"";
+			if($col_properties["filter_type"]=="search"){
+				echo "<input type=\"text\" name=\"od_filter[$catkey][]\"";
+				if(isset($od_object->filters[$catkey])){
+					echo " value=\"".$od_object->filters[$catkey][0]."\"";
+				}
+				echo ">";
+			} else {
+				echo "<select name=\"od_filter[$catkey][]\"";
+				if($col_properties["filter_type"]=="multiple"){
+					echo "multiple=\"multiple\"";
+				}
+				echo ">\n";
+				$od_selected_select = "";
+				$od_other_select = "";
+				foreach($cat["records"] as $rec){
+					$od_already_shown = 0;
+					if(isset($od_object->filters[$catkey])){
+						foreach($od_object->filters[$catkey] as $filtkey=>$filtvalue){
+							if(strtolower($filtvalue)==strtolower($rec["name"])){
+								$od_selected_select .= "<option value=\"".$rec["name"]."\" selected=\"selected\">".substr($rec["name"],0,35)." [".$rec["count"]."]</option>\n"; // names are cropped at 35 characters
+								$od_already_shown = 1;
+							}
+						}
+					}
+					if($od_already_shown==0){
+						$od_other_select .= "<option value=\"".$rec["name"]."\">".substr($rec["name"],0,35)." [".$rec["count"]."]</option>\n"; // names are cropped at 35 characters
+					}
+				}
+				echo $od_selected_select;
+				if($col_properties["filter_type"]=="single"){
+					echo "<option value=\"\"></option>\n";
+				}
+				echo $od_other_select;
+				echo "</select>\n";
 			}
-			echo ">\n";
-			if($col_properties["filter_type"]=="single"){
-				echo "<option value=\"\"></option>\n";
-			}
-			foreach($cat["records"] as $rec){
-				echo "<option value=\"".$rec["name"]."\">".substr($rec["name"],0,35)." [".$rec["count"]."]</option>\n"; // names are cropped at 35 characters
-			}
-			echo "</select></p>\n";
+			echo "</p>\n";
 		}
-		echo "<p>Search: </br><input type=\"text\" name=\"od_search\"></p>\n"; // search also allowed
+		echo "<p>Search: </br><input type=\"text\" name=\"od_search\"";
+		if(isset($od_object->search)){
+			echo " value=\"".implode(" OR ",$od_object->search)."\"";
+		}
+		echo "></p>\n"; // search also allowed
 		echo "<input type=\"hidden\" name=\"od_data\" value=\"data\">\n";
 		echo "<input type=\"submit\" value=\"Select records\">\n";
 		echo "<form>\n";

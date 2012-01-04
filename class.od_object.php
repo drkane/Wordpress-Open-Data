@@ -109,6 +109,9 @@ class od_object {
 				if($col["filter_type"]=="single"){ // if a column can be filtered then include in filter columns
 					$this->filter_cols["single"][$colname] = $colname;
 				}
+				if($col["filter_type"]=="search"){ // if a column can be filtered then include in filter columns
+					$this->filter_cols["single"][$colname] = $colname;
+				}
 			}
 		}
 		$sql .= "`" . implode("`, `",$this->select_cols) . "` "; // implode all the column names
@@ -242,13 +245,18 @@ class od_object {
 	 *
 	 * This function could probably be done a lot more efficiently.
 	**/
-	public function get_rss($rss_field){
+	public function get_field($field,$type="rss"){
 		$return = false;
-		foreach($this->tables[$this->selected_table]["columns"] as $od_col_key=>$od_col){ // go through each column
-			if($od_col["rss_type"]==$rss_field){ // if the rss_type matches the value you're looking for then that's the right field
+		if($type=="geog"){
+			$type = "geog_type";
+		} else {
+			$type = "rss_type";
+		}
+ 		foreach($this->tables[$this->selected_table]["columns"] as $od_col_key=>$od_col){ // go through each column
+			if($od_col[$type]==$field){ // if the rss_type matches the value you're looking for then that's the right field
 				$return = $od_col_key;
 			}
-			if($rss_field=="id"){
+			if($field=="id"){
 				if($od_col["is_id"]==1){
 					$return = $od_col_key;
 				}
@@ -265,16 +273,20 @@ class od_object {
 	**/
 	public function get_filters($display_type="html"){
 		$filters = array();
+		$filters_xml = array();
 		foreach($this->filters as $filtkey=>$filt){ // get all of the filters currently applied
+			$filtkey = str_replace("_"," ",$filtkey);
 			foreach($filt as $f){
 				if($f != ""){ // if the filter isn't for an empty string
-					$filters[] = ucwords($filtkey) . ": $f"; // produce a text string with the filter and the value
+					$filters[] = ucwords($filtkey) . ": " . ucwords($f); // produce a text string with the filter and the value
+					$filters_xml[] = array(ucwords($filtkey),ucwords($f));
 				}
 			}
 		}
 		foreach($this->search as $filt){
 			if($filt != "" ){ // if the filter isn't for an empty string
 				$filters[] = "Search: $filt"; // also include search filters
+				$filters_xml[] = array("Search",ucwords($filt));
 			}
 		}
 		$text = "";
@@ -283,6 +295,12 @@ class od_object {
 				$text .= "<ul><li>";
 				$text .= implode("</li>\n<li>",$filters); // implode all the selected filters
 				$text .= "</li></ul>";
+			} else if($display_type=="xml") {
+				foreach($filters_xml as $filter_xml){
+					$header = strtolower(str_replace(" ","_",$filter_xml[0])); // in the tags, replace and spaces with underscores
+					$header = preg_replace("/[^A-Za-z0-9-_:]/","",$header); // remove any non alphanumeric characters from the tags
+					$text .= "<$header value=\"".$filter_xml[0]."\">".$filter_xml[1]."</$header>";
+				}
 			} else {
 				$text = implode(" | ",$filters);
 			}
@@ -404,6 +422,22 @@ class od_object {
 		$od_sql = "SELECT `item_template` FROM `".$this->tables_name."` WHERE `name` = '".$wpdb->escape($this->selected_table)."' LIMIT 0,1";
 		$template = $wpdb->get_results($od_sql, ARRAY_A);
 		$template = $template[0]["item_template"];
+		return $template;		
+	}
+	
+	/**
+	 * Get metadata about a particular table
+	**/
+	public function get_table_metadata($metadatafield){
+		global $wpdb;
+		$metadatafields = array("name"=>"name", "nicename"=>"nicename", "description"=>"description");
+		if(isset($metadatafields[$metadatafield])){
+			$od_sql = "SELECT `$metadatafield` FROM `".$this->tables_name."` WHERE `name` = '".$wpdb->escape($this->selected_table)."' LIMIT 0,1";
+			$template = $wpdb->get_results($od_sql, ARRAY_A);
+			$template = $template[0][$metadatafield];
+		} else {
+			$template = false;
+		}
 		return $template;		
 	}
 	

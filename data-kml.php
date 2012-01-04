@@ -22,16 +22,19 @@ function od_display_data($od_object){
 	$output .= "\t</Icon>\n";
 	$output .= "</IconStyle>\n";
 	$output .= "</style>\n";
-	$kml_field_title = $od_object->get_rss("title"); // get the field used as RSS title
-	$kml_field_description = $od_object->get_rss("description"); // get the field used as RSS description
-	$kml_field_guid = $od_object->get_rss("guid"); // get the field used as RSS guid
-	$kml_field_timestamp = $od_object->get_rss("timestamp"); // get the field used as RSS timestamp (this is needed)
-	$kml_field_id = $od_object->get_rss("id"); // get the field used as RSS id
+	$kml_field_title = $od_object->get_field("title","rss"); // get the field used as RSS title
+	$kml_field_description = $od_object->get_field("description","rss"); // get the field used as RSS description
+	$kml_field_guid = $od_object->get_field("guid","rss"); // get the field used as RSS guid
+	$kml_field_timestamp = $od_object->get_field("timestamp","rss"); // get the field used as RSS timestamp (this is needed)
+	$kml_field_id = $od_object->get_field("id","rss"); // get the field used as RSS id
+	$geo_field_latlng = $od_object->get_field("latlng","geog"); // get the field used as latitude and longitude
+	$geo_field_lat = $od_object->get_field("lat","geog"); // get the field used as latitude
+	$geo_field_lng = $od_object->get_field("lng","geog"); // get the field used as longitude
 	foreach($od_data as $c){
 		$od_timestamp = $c["timestamp"];
 		$od_timestamp = strtotime($od_timestamp);
 		$od_timestamp = strftime('%a, %d %b %Y %H:%M:%S GMT',$od_timestamp);
-		if($c["longitude"]!=""&&$c["latitude"]!=""){
+		if($c[$geo_field_lng]!=""&&$c[$geo_field_lat]!=""){
 			$output .= "\t<Placemark>\n";
 			if(strpos($c[$kml_field_title],"&")>0){
 				$cdata = "<![CDATA[";
@@ -57,7 +60,7 @@ function od_display_data($od_object){
 			$description .= "<p><a href=\"$od_link\">More on this cut</a></p>";
 			$output .= "\t\t<description><![CDATA[$description]]></description>\n";
 			$output .= "\t\t<Point>\n";
-			$output .= "\t\t\t<coordinates>".$c["longitude"].",".$c["latitude"]."</coordinates>\n";
+			$output .= "\t\t\t<coordinates>".$c[$geo_field_lng].",".$c[$geo_field_lat]."</coordinates>\n";
 			$output .= "\t\t</Point>\n";
 			$output .= "\t\t<styleUrl>#defaultStyle</styleUrl>\n";
 			$output .= "\t</Placemark>\n";

@@ -14,7 +14,11 @@ function od_display_data($od_object,$od_type="data"){
 	}
 	header("Content-type: text/xml");
 	$output = "<?xml version=\"1.0\" encoding=\"ISO-8859-1\" ?>\n"; // xml header
-	$output .= "<output>\n"; 
+	$output .= "<".$od_object->get_table_metadata("name").">\n"; 
+	$output .= "\t<title>". $od_object->get_table_metadata("nicename") ."</title>\n"; // Get the title of the dataset
+	$output .= "\t<link>" . htmlspecialchars(od_change_datatype("html")) . "</link>\n"; // link to the equivalent dataset
+	$output .= "\t<description>". $od_object->get_table_metadata("description") ."</description>\n"; // Get the description of the dataset
+	$output .= "\t<filters>" . $od_object->get_filters("xml") . "</filters>\n"; // find the filters that have been used (and output them)
 	foreach($od_data as $c){
 		if($od_type!="item"){$output .= "\t<record>\n";} // main tag is "record" - this should be customisable
 		foreach($c as $key=>$field){
@@ -55,7 +59,7 @@ function od_display_data($od_object,$od_type="data"){
 		}
 		if($od_type!="item"){$output .= "\t</record>\n";}
 	}
-	$output .= "</output>\n";
+	$output .= "</".$od_object->get_table_metadata("name").">\n";
 	$output = trim($output);
 	return $output;
 }
