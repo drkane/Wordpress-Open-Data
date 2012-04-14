@@ -3,13 +3,16 @@
 Plugin Name: Wordpress Open Data
 Description: Adds open data functionality to a Wordpress-based site.
 Plugin URI: http://drkane.co.uk/projects/wordpress-open-data
-Version: 0.1
+Version: 0.2
 Author: David Kane
 Author URI: http://drkane.co.uk/
 License: GPLv2
 */
 include_once("class.od_object.php");
 include_once("class.od_object_maintenance.php");
+include_once("od_object_loop.php");
+
+$od_global = false;
 
 function od_queryvars($qvars){
 	$qvars[] = "od_data";
@@ -18,255 +21,265 @@ function od_queryvars($qvars){
 	$qvars[] = "od_id";
 	$qvars[] = "od_filetype";
 	$qvars[] = "od_search";
+	$qvars[] = "od_options";
 	return $qvars;
 }
-	$od_filetypes = array(
-	"html"=>"Content-type: text/html",
-	"txt"=>"Content-type: text/plain",
-	"csv"=>"Content-type: text/csv",
-	"json"=>"Content-type: application/json",
-	"jsonp"=>"Content-type: application/jsonp",
-	"xml"=>"Content-type: text/xml",
-	"rss"=>"Content-type: application/rss+xml",
-	"kml"=>"Content-type: application/vnd.google-earth.kml+xml",
-	"georss"=>"Content-type: application/rss+xml"
-	//	"xls"=>"Content-type: application/vnd.ms-excel"
-	//	"xlsx"=>"Content-type: application/vnd.openXMLformats-officedocument.spreadsheetml.sheet"
-	);
+
+$drk_table_types = array("thead", "tfoot");
 
 function od_template_redirect(){
-	global $wp_query, $wpdb, $od_filetypes;
+	global $wp_query, $wpdb;
 
 	if(isset($wp_query->query_vars["od_data"])){
-		$od_data_type = $wp_query->query_vars["od_data"];
-		if($od_data_type!="map"){	
-			$od_data_type="data";
-		}
-		$od_filetype = "html";
-		$od_data = new od_object();
+	
+		
 		if(isset($wp_query->query_vars["od_table"])){
-			$od_data->select_table($wp_query->query_vars["od_table"]);
+			$od_data = new od_object($wp_query->query_vars["od_table"]);
+		} else {
+			$od_data = new od_object();
 		}
-		if(isset($_REQUEST["od_filter"])){
-			$od_data->set_filters($_REQUEST["od_filter"]);
-		}
-		if(isset($_REQUEST["od_search"])){
-			$od_data->set_search($_REQUEST["od_search"]);
+		$od_filetypes = $od_data->filetypes;
+		$od_data_type = $wp_query->query_vars["od_data"];
+		$od_file_type = false;
+		if(isset($wp_query->query_vars["od_id"])){
+			$od_data_type = "item";
+			$od_data->set_item_id($wp_query->query_vars["od_id"]);
 		}
 		if(isset($wp_query->query_vars["od_filetype"])){
-			$od_filetype = $wp_query->query_vars["od_filetype"];
-			if($od_data_type=="map"){
-				$od_filetype = "html";
+			$od_file_type = $wp_query->query_vars["od_filetype"];
+		}
+		if(isset($wp_query->query_vars["od_options"])){
+			$od_data->parse_url($wp_query->query_vars["od_options"], $od_data_type);
+		} else {
+			$od_data->set_data_type($od_data_type, $od_file_type);
+			if(isset($_REQUEST["od_filter"])){
+				$od_data->set_filters($_REQUEST["od_filter"]);
+			}
+			if(isset($_REQUEST["od_search"])){
+				$od_data->set_search($_REQUEST["od_search"]);
 			}
 		}
-		if(isset($wp_query->query_vars["od_id"])){
-			$od_id = $wp_query->query_vars["od_id"];
-			$od_data_type = "item";
+	
+		if($od_data->od_include){
+			header("HTTP/1.1 200 OK");
+			header($od_data->header);
+			if(isset($od_data->filetypes[$od_data->od_include])){
+				echo $od_data->display_data();
+				exit;
+			} else {
+				global $od_global;
+				$od_global = $od_data;
+				include($od_data->od_include);
+				exit;
+			}
+		} else {
+				drk_print_r($od_data->od_include);
+			header("HTTP/1.1 404 Not Found");
+		}
+	}
+}
 
-		if($od_filetype=="rss"){
-			$od_filetype="html";
-			}
-		}
-		if($od_data_type=="map"){
-		$od_include = dirname(__FILE__) . "/map-html.php";
-		} else {
-		$od_include = dirname(__FILE__) . "/data-$od_filetype.php";
-		}
-		include($od_include);
-		if($od_data_type=="item"){
-		header("HTTP/1.1 200 OK");
-			header($od_filetypes[$od_filetype]);
-			$od_data->set_item_id($od_id);
-			echo od_display_data($od_data,"item");
-		} else if($od_data_type=="map") {
-		header("HTTP/1.1 200 OK");
-			header($od_filetypes[$od_filetype]);
-			echo od_display_data($od_data);
-		} else {
-		header("HTTP/1.1 200 OK");
-			header($od_filetypes[$od_filetype]);
-			echo od_display_data($od_data);
-		}
-		exit;
-	}}function opendata_dir_rewrite($wp_rewrite) {    $feed_rules = array(
-		'(data|map)/filter/([^/]+)/([^/]+)\.([a-z]+)' => 'index.php?od_data=$1&od_filetype=$4&od_filter[$2]=$3',
-		'(data|map)/filter/([^/]+)/([^/]+)' => 'index.php?od_data=$1&od_filetype=html&od_filter[$2]=$3',
-		'(data|map)/search/([^/]+)\.([a-z]+)' => 'index.php?od_data=$1&od_filetype=$3&od_search=$2',
-		'(data|map)/search/([^/]+)' => 'index.php?od_data=$1&od_filetype=html&od_search=$2',
-		'data/item/([^/]+)\.([a-z]+)' => 'index.php?od_data=item&od_filetype=$2&od_id=$1',
-		'data/item/([^/]+)' => 'index.php?od_data=item&od_filetype=html&od_id=$1',
-		'(data|map)\.([a-z]+)' => 'index.php?od_data=$1&od_filetype=$2',
-		'(data|map)' => 'index.php?od_data=$1&od_filetype=html',
-		'([^/]+)/(data|map)/filter/([^/]+)/([^/]+)\.([a-z]+)' => 'index.php?od_data=$2&od_table=$1&od_filetype=$5&od_filter[$3]=$4',
-		'([^/]+)/(data|map)/filter/([^/]+)/([^/]+)' => 'index.php?od_data=$2&od_table=$1&od_filetype=html&od_filter[$3]=$4',
-		'([^/]+)/(data|map)/search/([^/]+)\.([a-z]+)' => 'index.php?od_data=$2&od_table=$1&od_filetype=$4&od_search=$3',
-		'([^/]+)/(data|map)/search/([^/]+)' => 'index.php?od_data=$2&od_table=$1&od_filetype=html&od_search=$3',
-		'([^/]+)/data/item/([^/]+)\.([a-z]+)' => 'index.php?od_data=item&od_table=$1&od_filetype=$3&od_id=$2',
-		'([^/]+)/data/item/([^/]+)' => 'index.php?od_data=item&od_table=$1&od_filetype=html&od_id=$2',
-		'([^/]+)/(data|map)\.([a-z]+)' => 'index.php?od_data=$2&od_table=$1&od_filetype=$3',
-		'([^/]+)/(data|map)' => 'index.php?od_data=$2&od_table=$1&od_filetype=html'    );
+function get_table_menu() {
+	$od_data = new od_object($wp_query->query_vars["od_table"]);
+	return $od_data->get_menu_categories();
+}
+	
+function opendata_dir_rewrite($wp_rewrite) {
+	
+	$od_data = new od_object();
+	$synonym["data"] = $od_data->synonym["data"];
+	$synonym["map"] = $od_data->synonym["map"];
+	$synonym["item"] = $od_data->synonym["item"];
+	
+    $feed_rules = array(
+		'(' . implode("|",$synonym) . ')/(.*)'=>'index.php?od_data=$1&od_options=$2',
+		'(' . implode("|",$synonym) . ').(.*)'=>'index.php?od_data=$1&od_filetype=$2',
+		'(' . implode("|",$synonym) . ')' => 'index.php?od_data=$1&od_filetype=html',
+		'([^/]+)/(' . implode("|",$synonym) . ')/(.*)'=>'index.php?od_data=$2&od_table=$1&od_options=$3',
+		'([^/]+)/(' . implode("|",$synonym) . ')' => 'index.php?od_data=$2&od_table=$1&od_filetype=html'
+	);
 
 	$wp_rewrite->non_wp_rules = $feed_rules;
 }
-// Hook in.add_filter( 'generate_rewrite_rules', 'opendata_dir_rewrite' );
+
+// Hook in.
+add_filter( 'generate_rewrite_rules', 'opendata_dir_rewrite' );
 add_action('query_vars', 'od_queryvars');
 add_action('template_redirect', 'od_template_redirect');
 add_action('admin_menu', 'od_menu');
-add_action( 'add_meta_boxes', 'od_nav_menu_metabox' );
+add_action('admin_init', 'od_nav_menu_metabox' );
+
+add_filter('wp_nav_menu_items', 'hijack_nav_menu' , 10 , 2 );
+
+function hijack_nav_menu ( $items, $args ) {
+	$text = '<li id="menu-item-112" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-112"><a href="http://dave.com/">dave</a></li>';
+	$DOM = new DOMDocument;
+	$DOM->loadHTML($items);
+	$lists = $DOM->getElementsByTagName('li');
+	foreach ($lists as $list) {
+		$classes = $list->getAttribute("class");
+		$classes = explode(" ", $classes );
+		if(array_search("menu-item-type-custom", $classes)!==false){
+			$od_data = new od_object();
+			$new_menu_data = $od_data->get_menu_categories($list->nodeValue);
+			if($new_menu_data!=""){
+				$new_menu = $DOM->createDocumentFragment();
+				$new_menu->appendXML($new_menu_data);
+				$list->appendChild($new_menu);
+			}
+		}
+	}
+	$items = $DOM->saveHTML();
+	return $items;
+}
+
+function admin_jquery_script() {
+	wp_enqueue_script('jquery');
+	wp_enqueue_script('jquery-ui-core');
+	wp_enqueue_script('jquery-ui-sortable');
+	wp_enqueue_script('jquery-ui-tabs');
+    wp_enqueue_script( 'od-admin-script', plugins_url( 'scripts/admin-script.js' , __FILE__ ) , array('jquery', 'jquery-ui-core', 'jquery-ui-draggable' ) );
+    wp_enqueue_style( 'od-admin-style', plugins_url( 'styles/admin-style.css' , __FILE__ ) );
+
+}
 
 function od_menu() {
-	add_menu_page( "Data", "Data", "manage_options", "open-data", "od_options_main" , null, 32 );
-	add_submenu_page( "open-data", "Add New", "Add New", "manage_options", "open-data-tables", "od_options_table");
+	$page1 = add_menu_page( "Data", "Data", "manage_options", "open-data", "od_options_main" , null, 32 );
+	$page2 = add_submenu_page( "open-data", "Add New", "Add New", "manage_options", "open-data-tables", "od_options_table");
  	add_submenu_page( "open-data", "Permalinks", "Permalinks", "manage_options", "open-data-permalinks", "od_options_permalinks");
+    add_action('admin_print_scripts-' . $page1, 'admin_jquery_script');
+    add_action('admin_print_scripts-' . $page2, 'admin_jquery_script');
  }
+ 
 function od_options_main() {
 	if (!current_user_can('manage_options'))  {
 		wp_die( __('You do not have sufficient permissions to access this page.') );
 	}
-	$od_maintain = new od_object_maintenance();
-	echo '<div class="wrap">';
+	$action = false;
+	$table = "";
+	if(isset($_REQUEST["action"])){
+		$action = $_REQUEST["action"];
+	}
 	if(isset($_REQUEST["od_table"])){
-		echo '<div id="icon-edit-pages" class="icon32 icon32-posts-page"><br /></div><h2>Edit data table <a href="admin.php?page=open-data-tables" class="add-new-h2">Add New Data Table</a> </h2> ';
-		if(isset($_REQUEST["od_table_edit"])){
-		}
-		$od_table_data = $od_maintain->tables[$_REQUEST["od_table"]];
-		if(count($od_table_data)>0){
-			$od_page = "<form name=\"data\" action=\"admin.php?page=open-data&od_table=".$od_table_data["name"]."\" method=\"post\" id=\"data\">";
-			$od_page .= "<h3>Table details</h3>";
-			$od_page .= "<input type=\"hidden\" name=\"od_table_edit[is_default]\" tabindex=\"1\" value=\"".$od_table_data["is_default"]."\" id=\"title\" class=\"hidden\" /><br/>";
-			$od_page .= "<input type=\"text\" name=\"od_table_edit[nicename]\" size=\"50\" tabindex=\"1\" value=\"".$od_table_data["nicename"]."\" id=\"title\" autocomplete=\"off\" /><br/>";
-			$od_page .= "Description: <textarea name=\"od_table_edit[description]\" rows=\"6\" cols=\"35\"></textarea>";
-			$od_page .= "<h3>Data columns</h3>";
-			$od_page .= "<table>";
-			$od_page .= "<thead>";
-			$od_page .= "<tr>";
-			$od_page .= "<th>Name</th>";
-			$od_page .= "<th>Description</th>";
-			$od_page .= "<th>mysql</th>";
-			$od_page .= "<th>Display</th>";
-			$od_page .= "<th>Filter</th>";
-			$od_page .= "<th>Geography</th>";
-			$od_page .= "<th>Open data</th>";
-			$od_page .= "<th>Identifier</th>";
-			$od_page .= "<th>Timestamp</th>";
-			$od_page .= "<th>Searchable</th>";
-			$od_page .= "<th>Linked data URL</th>";
-			$od_page .= "</tr>";
-			$od_page .= "</thead>";
-			foreach($od_table_data["columns"] as $od_col){
-				$od_page .= "<tr>";
-				$od_page .= "<td><input name=\"od_table_edit[columns][".$od_col["column_name"]."][nice_name]\" type=\"text\" value=\"".$od_col["nice_name"]."\" /></td>";
-				$od_page .= "<td><input name=\"od_table_edit[columns][".$od_col["column_name"]."][description]\" type=\"text\" value=\"".$od_col["description"]."\" /></td>";
-				$od_page .= "<td><input name=\"od_table_edit[columns][".$od_col["column_name"]."][mysql_type]\" type=\"text\" value=\"".$od_col["mysql_type"]."\" /></td>";
-				$od_page .= "<td><input name=\"od_table_edit[columns][".$od_col["column_name"]."][display_type]\" type=\"text\" value=\"".$od_col["display_type"]."\" /></td>";
-				$od_page .= "<td><select name=\"od_table_edit[columns][".$od_col["column_name"]."][filter_type]\">";
-				foreach($od_maintain->filter_types as $filter_type){
-					$od_page .= "<option";
-					if($filter_type=="none") {
-						$od_page .= " value=\"\"";
-					} else {
-						$od_page .= " value=\"$filter_type\"";
-						if($filter_type==$od_col["filter_type"]){$od_page .= "selected=\"selected\"";}
-					}
-					$od_page .= ">$filter_type</option>";
-				}
-				$od_page .= "</select></td>";
-				$od_page .= "<td><select name=\"od_table_edit[columns][".$od_col["column_name"]."][geog_type]\">";
-				foreach($od_maintain->geography_types as $geog_type){
-				$od_page .= "<option";
-					if($geog_type=="none") {
-					$od_page .= " value=\"\"";
-					} else {
-					$od_page .= " value=\"$geog_type\"";
-						if($geog_type==$od_col["geog_type"]){$od_page .= "selected=\"selected\"";}
-						}
-						$od_page .= ">$geog_type</option>";
-				}
-				$od_page .= "</select></td>";
-				$od_page .= "<td><input name=\"od_table_edit[columns][".$od_col["column_name"]."][is_open]\" type=\"checkbox\"";
-				if($od_col["is_open"]==1){$od_page .= " checked=\"checked\"";}
-				$od_page .= " /></td>";
-				$od_page .= "<td><input name=\"od_table_edit[columns][".$od_col["column_name"]."][is_id]\" type=\"radio\" name=\"is_type\"";
-				if($od_col["is_id"]==1){$od_page .= " checked=\"checked\"";}
-				$od_page .= " /></td>";
-				$od_page .= "<td><input name=\"od_table_edit[columns][".$od_col["column_name"]."][is_timestamp]\" type=\"radio\" name=\"is_timestamp\"";
-				if($od_col["is_timestamp"]==1){$od_page .= " checked=\"checked\"";}
-				$od_page .= " /></td>";
-				$od_page .= "<td><input name=\"od_table_edit[columns][".$od_col["column_name"]."][is_search]\" type=\"checkbox\"";
-				if($od_col["is_search"]==1){$od_page .= " checked=\"checked\"";}
-				$od_page .= " /></td>";
-				$od_page .= "<td><input name=\"od_table_edit[columns][".$od_col["column_name"]."][linked_data_url]\" type=\"text\" value=\"".$od_col["linked_data_url"]."\" /></td>";
-				$od_page .= "</tr>";
-			}
-			$od_page .= "</table>";
-			$od_page .= "<h3>Item template</h3>";
-			$od_page .= "<textarea name=\"od_table_edit[item_template]\" rows=\"20\" cols=\"120\"></textarea><br />";
-			$od_page .= "<input type=\"submit\" />";
-			$od_page .= "</form>";
-			if(isset($_REQUEST["action"])){
-			if($_REQUEST["action"]=="trash"){
-			$od_page = "<p>Are you sure you want to delete the table?</p>";
-				}
-				}
-			echo $od_page;
-		} else {
-		echo "<p>Table not found</p>\n";
-		}
-		} else {
-		echo '<div id="icon-edit-pages" class="icon32 icon32-posts-page"><br /></div><h2>Data options <a href="admin.php?page=open-data-tables" class="add-new-h2">Add New Data Table</a> </h2> ';
-		print_r($_REQUEST);
-		echo "<table class=\"wp-list-table widefat fixed posts\" cellspacing=\"0\">";
-		echo "<thead>";
-		echo "<tr>";
-		echo "<th scope='col' id='cb' class='manage-column column-cb check-column'  style=\"\"><input type=\"checkbox\" /></th>";
-		echo "<th scope='col' id='title' class='manage-column column-title sortable desc'  style=\"\"><a href=\"admin.php?page=open-data&orderby=title&#038;
-order=asc\"><span>Title</span><span class=\"sorting-indicator\"></span></a></th>";
-		echo "<th scope='col' id='default' class='manage-column column-tags'  style=\"\">Default</th>";
-		echo "<th scope='col' id='columns' class='manage-column column-tags sortable desc'  style=\"\"><a href=\"admin.php?page=open-data&orderby=columns&#038;
-order=asc\"><span>Columns</span><span class=\"sorting-indicator\"></span></a></th>";
-		echo "<th scope='col' id='records' class='manage-column column-tags sortable desc'  style=\"\"><a href=\"admin.php?page=open-data&orderby=records&#038;
-order=asc\"><span>Records</span><span class=\"sorting-indicator\"></span></a></th>";
-		echo "</tr>";
-		echo "</thead>";
-		echo "<tfoot>";
-		echo "<tr>";
-		echo "<th scope='col' id='cb' class='manage-column column-cb check-column'  style=\"\"><input type=\"checkbox\" /></th>";
-		echo "<th scope='col' id='title' class='manage-column column-title sortable desc'  style=\"\"><a href=\"admin.php?page=open-data&orderby=title&#038;
-order=asc\"><span>Title</span><span class=\"sorting-indicator\"></span></a></th>";
-		echo "<th scope='col' id='default' class='manage-column column-tags'  style=\"\">Default</th>";
-		echo "<th scope='col' id='columns' class='manage-column column-tags sortable desc'  style=\"\"><a href=\"admin.php?page=open-data&orderby=columns&#038;
-order=asc\"><span>Columns</span><span class=\"sorting-indicator\"></span></a></th>";
-		echo "<th scope='col' id='records' class='manage-column column-tags sortable desc'  style=\"\"><a href=\"admin.php?page=open-data&orderby=records&#038;
-order=asc\"><span>Records</span><span class=\"sorting-indicator\"></span></a></th>";
-		echo "</tr>";
-		echo "</tfoot>";
-		echo "<tbody id=\"the-list\">\n";
-		foreach($od_maintain->tables as $t){
-			echo "\t\t<tr id='post-1' class='alternate author-self status-publish format-default iedit' valign=\"top\">\n";
-			echo "\t\t\t<td scope=\"row\" class=\"check-column\"><input type=\"checkbox\" name=\"post[]\" value=\"1\" /></td>\n";
-			echo "\t\t\t\t\t<td class=\"post-title page-title column-title\"><strong><a class=\"row-title\" href=\"admin.php?page=open-data&od_table=".$t["name"]."&action=edit\" title=\"Edit &#8220;".$t["nicename"]."&#8221;\">".$t["nicename"]."</a></strong>\n";
-			echo "<p>".$t["description"]."</p>\n";
-			echo "<div class=\"row-actions\"><span class='edit'><a href=\"admin.php?page=open-data&od_table=".$t["name"]."&action=edit\" title=\"Edit this item\">Edit</a> | </span><span class='inline hide-if-no-js'><a href=\"#\" class=\"editinline\" title=\"Edit this item inline\">Quick&nbsp;Edit</a> | </span><span class='trash'><a class='submitdelete' title='Move this item to the Trash' href='admin.php?page=open-data&od_table=".$t["name"]."&action=trash'>Trash</a> | </span><span class='view'><a href=\"/?p=1\" title=\"View &#8220;Hello world!&#8221;\" rel=\"permalink\">View</a></span></div></td>\n";
-			echo "\t\t\t\t\t<td class=\"categories column-categories\"><input type=\"radio\" name=\"default\" ";
-			if($t["is_default"]==1){ echo "checked=\"checked\" ";
-}			echo "/></td>\n";
-			echo "\t\t\t\t\t<td class=\"tags column-tags\">".count($t["columns"])."</td>\n";
-			echo "\t\t\t\t\t<td class=\"tags column-tags\">".$t["rows"]."</td>\n";
-			echo "</tr>\n";
-		}
-		echo "\t</tbody>\n";
-		echo "</table>";
-	}	echo "</div>";
+		$table = $_REQUEST["od_table"];
+	}
+	$od_maintain = new od_object_maintenance(); ?>
+	<div class="wrap">
+		<div id="icon-edit-pages" class="icon32 icon32-posts-page"><br /></div>
+	<?php
+	if(isset($_REQUEST["od_new_table"])){
+		if($od_maintain->add_new_table($_REQUEST["od_new_table"])): ?>
+			<div class="updated">
+			<h3>Table changed</h3>
+			<?php echo drk_implode('</p><p>', $od_maintain->action, '<p>', '</p>'); ?>
+			<?php echo drk_implode('</p><p>', $od_maintain->error, '<p>', '</p>'); ?>
+			</div>
+		<?php else: ?>
+			<div class="error">
+			<h3>Table could not be changed</h3>
+			<?php echo drk_implode('</p><p>', $od_maintain->action, '<p>', '</p>'); ?>
+			<?php echo drk_implode('</p><p>', $od_maintain->error, '<p>', '</p>'); ?>
+			<?php drk_print_r($_REQUEST["od_new_table"]); ?>
+			</div>
+		<?php endif;
+	} else if (isset($_REQUEST["quickadd"])&&isset($_FILES["quickaddfile"])){
+		if($od_maintain->add_table_data($_FILES["quickaddfile"]["tmp_name"], $_REQUEST["quickadd"]["name"],false, true, true)): ?>
+			<div class="updated">
+			<h3>Table added</h3>
+			<?php echo drk_implode('</p><p>', $od_maintain->action, '<p>', '</p>'); ?>
+			<?php echo drk_implode('</p><p>', $od_maintain->error, '<p>', '</p>'); ?>
+			</div>
+		<?php else: ?>
+			<div class="error">
+			<h3>Table could not be added</h3>
+			<?php echo drk_implode('</p><p>', $od_maintain->action, '<p>', '</p>'); ?>
+			<?php echo drk_implode('</p><p>', $od_maintain->error, '<p>', '</p>'); ?>
+			<?php drk_print_r($_REQUEST["quickadd"]); ?>
+			<?php drk_print_r($_FILES["quickaddfile"]); ?>
+			</div>
+		<?php endif;
+	} 
+	if($action=="edit"):
+		if($od_maintain->table_exists($table)): ?>
+			<h2>Edit table</h2>
+			<div class="metabox-holder">
+			<?php $od_maintain->add_new_table_admin($table); ?>
+			</div>
+		<?php else: ?>
+			<h2>Data options <a href="admin.php?page=open-data-tables" class="add-new-h2">Add New Data Table</a></h2>
+			<div class="metabox-holder">
+			<div class="error"><p>Table "<?php echo $table; ?>" not found</p></div>
+			<?php $od_maintain->admin_screen(); ?>
+			</div>
+		<?php endif; ?>
+	<?php elseif($action=="data"): ?>
+			<h2>Edit table</h2>
+			<div class="metabox-holder">
+			<?php $od_maintain->table_data_admin($table); ?>
+			</div>
+	<?php elseif($action=="trash"): ?>
+			<h2>Data options <a href="admin.php?page=open-data-tables" class="add-new-h2">Add New Data Table</a></h2>
+			<div class="metabox-holder">
+			<?php if($od_maintain->delete_table($table)): ?>
+			<div class="updated">
+				<p>Table "<?php echo $table; ?>" deleted</p>
+			</div>
+			<?php else: ?>
+			<div class="updated">
+				<p>Table "<?php echo $table; ?>" could not be deleted</p>
+				<?php echo drk_implode('</p><p>', $od_maintain->action, '<p>', '</p>'); ?>
+				<?php echo drk_implode('</p><p>', $od_maintain->error, '<p>', '</p>'); ?>
+			</div>
+			<?php endif; ?>
+			</div>
+			<?php $od_maintain->admin_screen(); ?>
+			</div>
+	<?php else: ?>
+		<h2>Data options <a href="admin.php?page=open-data-tables" class="add-new-h2">Add New Data Table</a></h2>
+		<?php $od_maintain->admin_screen(); ?>
+	<?php endif; ?>
+	</div><?php
 }
+
 function od_options_table() {
 	if (!current_user_can('manage_options'))  {
 		wp_die( __('You do not have sufficient permissions to access this page.') );
 	}
 	$od_maintain = new od_object_maintenance();
 	echo '<div class="wrap">';
-	echo '<div id="icon-edit-pages" class="icon32 icon32-posts-page"><br /></div><h2>Add new data table</h2> ';
+	echo '<div id="icon-edit-pages" class="icon32 icon32-posts-page"><br /></div> ';
+	if(isset($_REQUEST["od_new_table"])){
+		if($od_maintain->add_new_table($_REQUEST["od_new_table"])): ?>
+			<h2>Edit table</h2>
+			<div class="metabox-holder">
+			<div class="updated">
+			<h3>Table added</h3>
+			<?php echo drk_implode('</p><p>', $od_maintain->action, '<p>', '</p>'); ?>
+			<?php echo drk_implode('</p><p>', $od_maintain->error, '<p>', '</p>'); ?>
+			</div>
+			<?php $od_maintain->add_new_table_admin($od_maintain->selected_table); ?>
+			</div>
+		<?php else: ?>
+			<h2>Add new table</h2>
+			<div class="metabox-holder">
+			<div class="error">
+			<h3>Table could not be added</h3>
+			<?php echo drk_implode('</p><p>', $od_maintain->action, '<p>', '</p>'); ?>
+			<?php echo drk_implode('</p><p>', $od_maintain->error, '<p>', '</p>'); ?>
+			<?php drk_print_r($_REQUEST["od_new_table"]); ?>
+			</div>
+			<?php $od_maintain->add_new_table_admin($od_maintain->selected_table); ?>
+			</div>
+		<?php endif;
+	} else {
+		echo '<h2>Add new table</h2>';
+		echo '<div class="metabox-holder">';
+		$od_maintain->add_new_table_admin();
+		echo '</div>';
+	}
 	echo '</div>';
 }
+
 function od_options_permalinks() {
 	if (!current_user_can('manage_options'))  {
 	wp_die( __('You do not have sufficient permissions to access this page.') );
@@ -276,14 +289,63 @@ function od_options_permalinks() {
 	echo '<div id="icon-edit-pages" class="icon32 icon32-posts-page"><br /></div><h2>Edit data permalinks</h2> ';
 	echo '</div>';
 }
+
 function od_nav_menu_metabox() {
-	add_meta_box(         'add-data',        __( 'Add data', 'myplugin_textdomain' ),        'od_inner_custom_box',        'nav-menu'     );
+	add_meta_box(
+		'add-data',
+        'Data',
+        'od_inner_custom_box',
+        'nav-menus', 
+		'side', 
+		'default'
+	);
 }
-function od_inner_custom_box() {
-	echo "<p>Text box</p>";
+function od_inner_custom_box() {?>
+	<div class="query">
+			<p>
+				<label class="howto" for="post_type_or_taxonomy">
+					<span><?php _e('Post Type or Taxonomy'); ?></span>
+				</label>
+				<select id="post_type_or_taxonomy" name="post_type_or_taxonomy" style="width: 100%">
+					<option value="post_type">Post Type</option>
+					<option value="taxonomy">Taxonomy</option>
+				</select>
+			</p>
+
+			<p>
+				<label class="howto" for="post_type_or_taxonomy_id">
+					<span><?php _e('ID'); ?></span>
+					<input id="post_type_or_taxonomy_id" name="post_type_or_taxonomy_id" type="text" class="regular-text menu-item-textbox input-with-default-title" title="<?php esc_attr_e('ID'); ?>" />
+				</label>
+			</p>
+
+			<p style="display: block; margin: 1em 0; clear: both;">
+				<label class="howto" for="post_type_or_taxonomy_title">
+					<span><?php _e('Title'); ?></span>
+					<input id="post_type_or_taxonomy_title" name="post_type_or_taxonomy_title" type="text" class="regular-text menu-item-textbox input-with-default-title" title="<?php esc_attr_e('Optional'); ?>" />
+				</label>
+			</p>
+
+		<p class="button-controls">
+			<span class="list-controls">
+			</span>
+			<span class="add-to-menu">
+				<img class="waiting" src="<?php echo esc_url( admin_url( 'images/wpspin_light.gif' ) ); ?>" alt="" />
+				<input type="submit" class="button-secondary" value="<?php esc_attr_e('Add to Menu'); ?>" name="add-custom-menu-item" />
+			</span>
+		</p>
+
+	</div><?php
 }
 function od_change_datatype($od_type="csv",$od_view="data") {
-	global $od_filetypes;
+	return "http://www.bbc.co.uk/news/";
+	/*
+	
+	NEEDS TO BE REDONE
+	
+	
+	global $od_data;
+	$od_filetypes = $od_data->filetypes;
 	$od_pageURL = 'http';
 	if(isset($_SERVER["HTTPS"])){
 		if ($_SERVER["HTTPS"] == "on") {$pageURL .= "s";
@@ -309,16 +371,69 @@ function od_change_datatype($od_type="csv",$od_view="data") {
 		} else {
 			$od_new_url = str_replace("/map","/data",$od_pageURL);
 		}
-		if(substr($od_new_url,-1)=="/"){$od_new_url = substr($od_new_url,0,-1);
-}		foreach($od_filetypes as $od_key=>$od_value){
+		if(substr($od_new_url,-1)=="/"){
+			$od_new_url = substr($od_new_url,0,-1);
+		}
+		drk_print_r($od_filetypes);
+		foreach($od_filetypes as $od_key=>$od_value){
 			$od_new_url = str_replace(".$od_key","",$od_new_url);
 		}
 		if($od_type!="html"){
 			$od_new_url = $od_new_url . ".$od_type";
 		}
 	}
-	return $od_new_url;
+	return $od_new_url; */
 }
 
+function drk_merge_arrays($defaults, $options = array(), $recursive=true){
+	if(is_array($defaults)&&is_array($options)){
+		foreach($defaults as $key=>&$value){
+			if(isset($options[$key])){
+				if(is_array($value)&&is_array($options[$key])&&$recursive){
+					$value = drk_merge_arrays($value, $options[$key]);
+				} else {
+					$value = $options[$key];
+				}
+			}
+		}
+		return $defaults;
+	} else {
+		return false;
+	}
+}
 
-?>
+function drk_implode($glue, $pieces, $before="", $after="", $default=""){
+	$return = '';
+	$return .= implode($glue, $pieces);
+	if($return!=''){
+		$return = $before . $return . $after;
+	} else {
+		$return = $default;
+	}
+	return $return;
+}
+
+function drk_print_r($var, $return=false, $before='<pre>', $after='</pre>'){
+	$pretty = $before . print_r($var, true) . $after;
+	if($return){
+		return $pretty;
+	} else {
+		echo $pretty;
+		return true;
+	}
+}
+
+function drk_implode_recursive($glue, $pieces) {
+	$return = "";
+	if ( is_array ( $pieces ) ) {
+		foreach ($pieces as &$piece){
+			if ( is_array ( $piece ) ) {
+				$piece = drk_implode_recursive( $glue, $piece ); 
+			}
+		}
+		$return = implode( $glue, $pieces );
+	} else if ( is_string ( $pieces ) ) {
+		$return = $pieces;
+	}
+	return $return;
+}

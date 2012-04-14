@@ -1,0 +1,34 @@
+Options:
+
+od_table_XXXX - table configuration
+	-> columns (array of columns in the table)
+		-> column_name
+		-> nice_name
+		-> description
+		-> mysql_type
+		-> display_type
+		-> filter_type
+		-> geog_type
+		-> rss_type
+		-> is_open
+		-> is_id
+		-> is_timestamp
+		-> is_search
+		-> is_html
+		-> linked_data_url
+		-> order
+	-> name (slug of name)
+	-> nice_name (Displayable name)
+	-> description (Description of table)
+	-> item_template
+	-> sidebar_item_template
+	-> filter_columns
+	-> search_columns
+
+od_default_table - slug of default table
+od_default_sidebar - default sidebar template
+od_default_item - default item template
+od_tables - array (slug->nicename) of existing tables
+od_synonym_data - word used for "data" in URL
+od_synonym_map - word used for "map" in URL
+od_synonym_item - word used for "item" in URL
