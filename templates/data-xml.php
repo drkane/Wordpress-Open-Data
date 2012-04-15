@@ -16,7 +16,7 @@ function od_display_data($od_object){
 	$output = "<?xml version=\"1.0\" encoding=\"ISO-8859-1\" ?>\n"; // xml header
 	$output .= "<".$od_object->get_table_metadata("name").">\n"; 
 	$output .= "\t<title>". $od_object->get_table_metadata("nicename") ."</title>\n"; // Get the title of the dataset
-	$output .= "\t<link>" . htmlspecialchars(od_change_datatype("html")) . "</link>\n"; // link to the equivalent dataset
+	$output .= "\t<link>" . htmlspecialchars($od_object->change_datatype("html")) . "</link>\n"; // link to the equivalent dataset
 	$output .= "\t<description>". $od_object->get_table_metadata("description") ."</description>\n"; // Get the description of the dataset
 	$output .= "\t<filters>" . $od_object->get_filters("xml") . "</filters>\n"; // find the filters that have been used (and output them)
 	foreach($od_data as $c){

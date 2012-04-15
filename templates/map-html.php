@@ -32,17 +32,17 @@
 				<p>Link to map: <a href=\"$od_maplink\">$od_maplink</a></p>";
 	echo "<iframe width=\"600\" height=\"600\" frameborder=\"0\" scrolling=\"no\" marginheight=\"0\" marginwidth=\"0\" src=\"http://www.google.co.uk/maps?f=q&amp;source=s_q&amp;hl=en&amp;geocode=&amp;q=".urlencode($od_maplink)."&amp;aq=&amp;vpsrc=0&amp;ie=UTF8&amp;t=m&amp;output=embed\"></iframe>";
 	echo "<br />";
-		echo "<a href=\"" . od_change_datatype("csv") . "\" title=\"Comma Separated Values: compatible with spreadsheet programs like Microsoft Excel\">CSV</a> | "; // allow the data to be downloaded in different formats
-		echo "<a href=\"" . od_change_datatype("html") . "\" title=\"View in a table on a web page\">Table</a> | ";
-		echo "<a href=\"" . od_change_datatype("html","map") . "\" title=\"View in a map\">Map</a> | ";
-		echo "<a href=\"http://www.google.co.uk/maps?f=q&amp;source=embed&amp;hl=en&amp;geocode=&amp;q=".urlencode(od_change_datatype("kml"))."&amp;aq=&amp;vpsrc=0&amp;ie=UTF8&amp;t=m\" target=\"_blank\" title=\"View in Google Maps\">Google Maps</a>";
+		echo "<a href=\"" . $od_object->change_datatype("csv") . "\" title=\"Comma Separated Values: compatible with spreadsheet programs like Microsoft Excel\">CSV</a> | "; // allow the data to be downloaded in different formats
+		echo "<a href=\"" . $od_object->change_datatype("html") . "\" title=\"View in a table on a web page\">Table</a> | ";
+		echo "<a href=\"" . $od_object->change_datatype("html","map") . "\" title=\"View in a map\">Map</a> | ";
+		echo "<a href=\"http://www.google.co.uk/maps?f=q&amp;source=embed&amp;hl=en&amp;geocode=&amp;q=".urlencode($od_object->change_datatype("kml"))."&amp;aq=&amp;vpsrc=0&amp;ie=UTF8&amp;t=m\" target=\"_blank\" title=\"View in Google Maps\">Google Maps</a>";
 		echo "<br />";
-		echo "<a href=\"" . od_change_datatype("json") . "\" title=\"JavaScript Object Notation\">JSON</a> | ";
-		echo "<a href=\"" . od_change_datatype("txt") . "\" title=\"A text file in CSV format\">TXT</a> | ";
-		echo "<a href=\"" . od_change_datatype("rss") . "\" title=\"Really Simple Syndication: used in feed readers such as Google Reader\">RSS</a> | ";
-		echo "<a href=\"" . od_change_datatype("xml") . "\" title=\"eXtensible Markup Langauge\">XML</a> | ";
-		echo "<a href=\"" . od_change_datatype("xml") . "\" title=\"Keyhole Markup Langauge\">KML</a> | ";
-		echo "<a href=\"" . od_change_datatype("xml") . "\" title=\"Geographical extension of RSS\">geoRSS</a>";
+		echo "<a href=\"" . $od_object->change_datatype("json") . "\" title=\"JavaScript Object Notation\">JSON</a> | ";
+		echo "<a href=\"" . $od_object->change_datatype("txt") . "\" title=\"A text file in CSV format\">TXT</a> | ";
+		echo "<a href=\"" . $od_object->change_datatype("rss") . "\" title=\"Really Simple Syndication: used in feed readers such as Google Reader\">RSS</a> | ";
+		echo "<a href=\"" . $od_object->change_datatype("xml") . "\" title=\"eXtensible Markup Langauge\">XML</a> | ";
+		echo "<a href=\"" . $od_object->change_datatype("xml") . "\" title=\"Keyhole Markup Langauge\">KML</a> | ";
+		echo "<a href=\"" . $od_object->change_datatype("xml") . "\" title=\"Geographical extension of RSS\">geoRSS</a>";
 	echo "</div><!-- .entry-content -->\n";
 	echo "</article><!-- #post-0 -->\n";
 

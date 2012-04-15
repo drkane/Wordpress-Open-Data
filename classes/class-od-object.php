@@ -7,7 +7,7 @@
  * @package WordPressOpenData
  */
 
-class od_object {
+class Open_Data_Object {
 	
 	public $tables = array(); // The tables associated with Open Data
 	public $table_config = array(); // The tables associated with Open Data
@@ -293,12 +293,15 @@ class od_object {
 		
 		// then set the include path to be used
 		$od_include_file_name = $this->data_type . "-" . $this->file_type . ".php";
+		global $od_plugin_dir;
 		$od_include_dirs = array( 
-			get_current_theme() . "/" . $this->table_config["name"] . "-" , 
-			dirname(__FILE__) . "/templates/" . $this->table_config["name"] . "-" ,
-			get_current_theme() . "/" , 
-			dirname(__FILE__) . "/templates/",
-			dirname(__FILE__) . "/"
+			get_stylesheet_directory() . "/" . $this->table_config["name"] . "-" , 
+			get_template_directory() . "/" . $this->table_config["name"] . "-" , 
+			$od_plugin_dir . "/templates/" . $this->table_config["name"] . "-" ,
+			get_stylesheet_directory() . "/" , 
+			get_template_directory() . "/" , 
+			$od_plugin_dir . "/templates/",
+			$od_plugin_dir . "/"
 		);
 		
 		foreach($od_include_dirs as $od_include_dir_name){
@@ -516,7 +519,7 @@ class od_object {
 	 * check whether a named table exists
 	**/
 	public function table_exists($table){
-		$table = $this->sluggify($table);
+		$table = drk_sluggify($table);
 		$table_exists = false;
 		if($this->tables){
 			$table_exists = isset($this->tables[$table]);
@@ -539,7 +542,7 @@ class od_object {
 	**/
 	private function get_column_properties(){
 		$sql_columns = $this->table_config["columns"];
-		$sql_columns =$this->subval_sort($sql_columns,"order","forward"); // sort the columns by the sort order provided
+		$sql_columns =drk_subval_sort($sql_columns,"order","forward"); // sort the columns by the sort order provided
 		foreach($sql_columns as $col){
 			$colname = $wpdb->escape($col["column_name"]);
 			if($col["is_open"]){ // include only columns that are allowed to be made open
@@ -588,7 +591,7 @@ class od_object {
 	 * Set the filters that will be used by the main data query
 	**/
 	public function get_menu_categories($field, $table=false){
-		$field = $this->sluggify($field);
+		$field = drk_sluggify($field);
 		$return = '';
 		if(isset($this->table_config["filter_columns"][$field])){
 			$filter_col = $this->table_config["filter_columns"][$field];
@@ -753,49 +756,6 @@ class od_object {
 		return $text; // return the html based on the template
 	}
 	
-	function subval_sort($a,$subkey,$direction="reverse") {
-	/* 
-	** a function for sorting a multidimensional array 
-	** stolen from http://www.firsttube.com/read/sorting-a-multidimensional-array-with-php/
-	** 		$a = array to sort
-	**		$subkey = the key of the contained array to sort by
-	** returns a new array sorted by the subkey
-	*/
-		if(is_array($a)){
-			foreach($a as $k=>$v) {
-				$b[$k] = strtolower($v[$subkey]); // make an array of the subkeys
-			}
-			if(isset($b)){
-				if($direction=="reverse"){
-					arsort($b); // sort the array of subkeys in reverse
-				} else {
-					asort($b); // sort the array of subkeys
-				}
-				foreach($b as $key=>$val) {
-					$c[$key] = $a[$key]; // remake original array based on the order of the subkeys
-				}
-				return $c;
-			} else {
-				return $a; // if no array made then return the original
-			}
-		} else {
-			return $a; // if no array made then return the original
-		}
-	}
-	
-	public function sluggify($name=''){
-		if(is_array($name)){
-			foreach($name as &$n){
-				$this->sluggify($n);
-			}
-		} else if(is_string($name)){
-			$name = str_replace(" ","_",$name);
-			$name = preg_replace("/[^a-zA-Z0-9_]/"," ",$name);
-			$name = strtolower($name);
-		}
-		return $name ;
-	}
-	
 	public function current_row() {
 		if($this->current_row>0&&count($this->data)>0){
 			return $this->data[$this->current_row - 1];
@@ -807,7 +767,7 @@ class od_object {
 	public function get_field($field) {
 		$return = false;
 		if($this->current_row>0&&count($this->data)>0){
-			$field = $this->sluggify($field);
+			$field = drk_sluggify($field);
 			$return = $this->data[$this->current_row - 1][$field];
 		}
 		return $return;
@@ -909,10 +869,10 @@ class od_object {
 					$col = 1;
 					foreach($data as $header=>$d) {
 						if($row==1){
-							$objPHPExcel->getActiveSheet()->SetCellValue( $this->excel_column($col) . $row , $header );
-							$objPHPExcel->getActiveSheet()->SetCellValue( $this->excel_column($col) . ( $row + 1 ) , $d );
+							$objPHPExcel->getActiveSheet()->SetCellValue( drk_excel_column($col) . $row , $header );
+							$objPHPExcel->getActiveSheet()->SetCellValue( drk_excel_column($col) . ( $row + 1 ) , $d );
 						} else {
-							$objPHPExcel->getActiveSheet()->SetCellValue( $this->excel_column($col) . $row , $d );
+							$objPHPExcel->getActiveSheet()->SetCellValue( drk_excel_column($col) . $row , $d );
 						}
 						$col++;
 					}
@@ -1001,16 +961,53 @@ class od_object {
 		return $output;
 		
 	}
-	
-	function excel_column ( $col_number = 1 ) {
-		if ( $col_number > 26 ) {
-			$remainder = $col_number % 26;
-			$col_number = floor ( $col_number / 26 );
-			$col = $this->excel_column ( $col_number ) . $this->excel_column ( $remainder );
+
+	function change_datatype ( $od_type="csv",$od_view="data" )  {
+		return "http://www.bbc.co.uk/news/";
+		/*
+		
+		NEEDS TO BE REDONE
+		
+		
+		global $od_data;
+		$od_filetypes = $od_data->filetypes;
+		$od_pageURL = 'http';
+		if ( isset ( $_SERVER["HTTPS"] )  ) {
+			if  ( $_SERVER["HTTPS"] == "on" )  {$pageURL .= "s";
+	}	}	$od_pageURL .= "://";
+		if  ( $_SERVER["SERVER_PORT"] != "80" )  {
+		$od_pageURL .= $_SERVER["SERVER_NAME"].":".$_SERVER["SERVER_PORT"].$_SERVER["REQUEST_URI"];
 		} else {
-			$col = chr( $col_number + 64 );
+			$od_pageURL .= $_SERVER["SERVER_NAME"].$_SERVER["REQUEST_URI"];
+		}	if ( strpos ( $od_pageURL,"od_data=" ) >0 ) {
+			if ( strpos ( $od_pageURL,"od_filetype=" ) >0 ) {
+				$od_new_url = $od_pageURL . "&od_filetype=$od_type";
+			} else {
+				$od_new_url = $od_pageURL . "&od_filetype=$od_type";
+			}
+			if ( $od_view=="map" ) {
+				$od_new_url = str_replace ( "od_data=data","od_data=map",$od_new_url );
+			} else {
+				$od_new_url = str_replace ( "od_data=map","od_data=data",$od_new_url );
+			}
+		} else {
+			if ( $od_view=="map" ) {
+				$od_new_url = str_replace ( "/data","/map",$od_pageURL );
+			} else {
+				$od_new_url = str_replace ( "/map","/data",$od_pageURL );
+			}
+			if ( substr ( $od_new_url,-1 ) =="/" ) {
+				$od_new_url = substr ( $od_new_url,0,-1 );
+			}
+			drk_print_r ( $od_filetypes );
+			foreach ( $od_filetypes as $od_key=>$od_value ) {
+				$od_new_url = str_replace ( ".$od_key","",$od_new_url );
+			}
+			if ( $od_type!="html" ) {
+				$od_new_url = $od_new_url . ".$od_type";
+			}
 		}
-		return $col;
+		return $od_new_url; */
 	}
 	
 }

@@ -1,6 +1,6 @@
 <?php
 
-class od_object_maintenance extends od_object {
+class Open_Data_Object_Maintenance extends Open_Data_Object {
 	
 	public $filter_types = array("none"=>"None","single"=>"Single","multiple"=>"Multiple");
 	public $geography_types = array("none"=>"None","latlng"=>"Latitude and Longitude","lat"=>"Latitude","lng"=>"Longitude","kml_area"=>"KML area");
@@ -45,6 +45,7 @@ class od_object_maintenance extends od_object {
 		"delete"=>false
 		);
 	public $errors = array();
+	public $table_types = array("thead", "tfoot");
 		
 	function __construct(){
 		parent::__construct();
@@ -145,7 +146,7 @@ class od_object_maintenance extends od_object {
 	}
 	
 	function add_new_table_admin($table=false, $attempted_settings=false){
-		global $drk_table_types;
+		$drk_table_types = $this->table_types;
 		$existing_table = false;
 		if($table&&$this->table_exists($table)){
 			$t = $this->get_table_config($table);
@@ -288,7 +289,7 @@ class od_object_maintenance extends od_object {
 	}
 	
 	function table_data_admin($table=false){
-		global $drk_table_types;
+		$drk_table_types = $this->table_types;
 		$existing_table = false;
 		if($this->select_table($table)){
 			$t = $this->get_table_config();
@@ -460,7 +461,7 @@ class od_object_maintenance extends od_object {
 		$add_now = false;
 		
 		$table_name = $table;
-		$table = $this->sluggify($table);
+		$table = drk_sluggify($table);
 		if($this->table_exists($table)){
 			$quickadd = false;
 			$add_now = true;
@@ -512,7 +513,7 @@ class od_object_maintenance extends od_object {
 			$order = 1;
 			foreach($columns as $col){
 				$col_settings = $this->default_column_settings;
-				$col_settings["column_name"] = $this->sluggify($col["name"]);
+				$col_settings["column_name"] = drk_sluggify($col["name"]);
 				$col_settings["nice_name"] = $col["name"];
 				if($col["number"]>0&&$col["string"]==0){
 					$col_settings["display_type"] = "number";
@@ -581,7 +582,7 @@ class od_object_maintenance extends od_object {
 			foreach($value as $val){
 				if($val!=""){
 					$val = str_replace("<<semicolon>>",";",$val); // put back the escaped semicolon
-					$val_slug = $this->sluggify($val);
+					$val_slug = drk_sluggify($val);
 					if(isset($this->table_config["filter_columns"][$column]["categories"][$val_slug])){
 						$this->table_config["filter_columns"][$column]["categories"][$val_slug]["records"]++;
 					} else {
@@ -610,7 +611,7 @@ class od_object_maintenance extends od_object {
 				$value = array($value);
 			}
 			foreach($value as $val){
-				$val_slug = $this->sluggify($val);
+				$val_slug = drk_sluggify($val);
 				if(isset($this->table_config["filter_columns"][$column]["categories"][$val_slug])){
 					$this->table_config["filter_columns"][$column]["categories"][$val_slug]["records"]--;
 				}
@@ -631,7 +632,7 @@ class od_object_maintenance extends od_object {
 	**/
 	private function sort_categories($column=false, $table=false){
 		foreach($this->table_config["filter_columns"] as &$columns){
-			$columns["categories"] = $this->subval_sort($columns["categories"],"records"); // uses subval_sort function
+			$columns["categories"] = drk_subval_sort($columns["categories"],"records"); // uses subval_sort function
 		}
 		update_option("od_table_" . $this->table_config["name"], $this->table_config);
 	}
@@ -673,7 +674,7 @@ class od_object_maintenance extends od_object {
 					$id = $new_table_options["id"]; // column id is stored in the id field as a column number
 					$primary_key = false; // primary key is not known yet
 					$new_table_options = drk_merge_arrays($this->default_settings, $new_table_options, false); // merge in default settings
-					$new_table_options["name"] = $this->sluggify($new_table_options["nice_name"]); // remove non alpha characters from name
+					$new_table_options["name"] = drk_sluggify($new_table_options["nice_name"]); // remove non alpha characters from name
 					
 					// set the default setting if the table is the default one
 					if(isset($new_table_options["is_default"])){
@@ -699,11 +700,11 @@ class od_object_maintenance extends od_object {
 					
 					// go through each column in turn
 					foreach($new_table_options["columns"] as $key=>&$value){
-						$value["column_name"] = $this->sluggify($value["nice_name"]); // create slug for column
+						$value["column_name"] = drk_sluggify($value["nice_name"]); // create slug for column
 						
 						// first check if the column should be deleted
 						if($value["delete"]=="true"){
-							$delete_columns[] = $this->sluggify($value["column_name"]);
+							$delete_columns[] = drk_sluggify($value["column_name"]);
 							unset($new_table_options["columns"][$key]);
 						} else { // if not, proceed 
 							$value = drk_merge_arrays($this->default_column_settings, $value, false); // merge in default settings

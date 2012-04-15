@@ -1,0 +1,7 @@
+To do:
+
+opendata.php
+	line 118	Add proper 404 page information, with feedback on what went wrong
+	line 143	Allow per-table URL redirection
+	line 175	Better menu parsing and display
+	line 362	Add permalink settings page
